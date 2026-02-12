@@ -1,0 +1,7 @@
+{
+  "name": "AcervoTeatro - Gestão de Inventário e Empréstimos",
+  "description": "Sistema completo para controle de figurinos, cenários e empréstimos do ministério de teatro, com termo digital, captura de foto e assinatura.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
