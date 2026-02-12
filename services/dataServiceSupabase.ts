@@ -29,7 +29,7 @@ export const dataServiceSupabase = {
       imageUrl: item.image_url
     }));
   },
-  async createItem(item: Partial<Item>) {
+  async createItem(item: Partial<Item>): Promise<Item> {
     const { data, error } = await supabase.from("items").insert([{
       name: item.name,
       category_id: item.categoryId,
@@ -41,8 +41,14 @@ export const dataServiceSupabase = {
       observations: item.observations,
       status: item.status
     }]).select().single();
+    
     if (error) throw error;
-    return data;
+    
+    return {
+      ...data,
+      categoryId: data.category_id,
+      imageUrl: data.image_url
+    } as Item;
   },
   async updateItem(id: string, item: Partial<Item>) {
     const { error } = await supabase.from("items").update({
