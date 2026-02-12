@@ -121,8 +121,8 @@ const App: React.FC = () => {
 
   const handleCreateLoan = () => {
     if (!selectedItem) return;
-    if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature) {
-      alert('Por favor, preencha todos os campos obrigatórios, inclua foto e assinatura.');
+    if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
+      alert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
       return;
     }
 
@@ -207,8 +207,18 @@ const App: React.FC = () => {
   const filterSectionClass = isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-50/50 border-zinc-200';
 
   const NAV_ITEMS = [
-    { id: 'inventory', label: 'Itens', icon: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
-    { id: 'loans', label: 'Emprestados', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4' },
+    { 
+      id: 'inventory', 
+      label: 'Itens', 
+      icon: 'https://res.cloudinary.com/dutufef4s/image/upload/v1770911547/box-open_hbnaza.svg',
+      isUrl: true
+    },
+    { 
+      id: 'loans', 
+      label: 'Emprestados', 
+      icon: 'https://res.cloudinary.com/dutufef4s/image/upload/v1770912478/grab_z6q4u6.png',
+      isUrl: true 
+    },
     { id: 'categories', label: 'Categorias', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'settings', label: 'Ajustes', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1 0 4 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 0-4 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z' }
   ];
@@ -239,9 +249,23 @@ const App: React.FC = () => {
                 : `text-zinc-500 hover:text-white ${isDark ? 'hover:bg-zinc-900' : 'hover:bg-zinc-200 hover:text-black'}`
               }`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d={tab.icon}/>
-              </svg>
+              {tab.isUrl ? (
+                <div 
+                  style={{ 
+                    maskImage: `url(${tab.icon})`, 
+                    WebkitMaskImage: `url(${tab.icon})`,
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskSize: 'contain',
+                    WebkitMaskSize: 'contain'
+                  }}
+                  className="w-[18px] h-[18px] bg-current" 
+                />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={tab.icon as string}/>
+                </svg>
+              )}
               {tab.label}
             </button>
           ))}
@@ -436,20 +460,27 @@ const App: React.FC = () => {
               ) : (
                 sortedLoans.map(loan => (
                   <Card key={loan.id} className="p-5 space-y-4">
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <h3 className={`font-bold text-lg leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{loan.itemName}</h3>
-                        <p className="text-zinc-500 text-sm mt-1 flex items-center gap-1.5">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                          {loan.borrowerName}
-                        </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Item</span>
+                         {loan.status === 'Ativo' && new Date() > new Date(loan.dueDate) && (
+                           <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Atrasado</span>
+                         )}
                       </div>
-                      <Badge variant={loan.status === 'Ativo' ? 'warning' : 'success'}>
-                        {loan.status}
-                      </Badge>
+                      <h3 className={`font-bold text-lg leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{loan.itemName}</h3>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Responsável</span>
+                      <p className={`font-semibold flex items-center gap-2 ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                         <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-800">
+                           <img src={loan.borrowerPhoto} className="w-full h-full object-cover" />
+                         </div>
+                         {loan.borrowerName}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2">
                       <Button variant="secondary" fullWidth onClick={() => handleViewLoanDetails(loan)}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                         Ver Detalhes
@@ -596,9 +627,23 @@ const App: React.FC = () => {
             }`}
           >
             <div className={`p-2 rounded-xl transition-all ${activeView === tab.id ? (isDark ? 'bg-zinc-800' : 'bg-zinc-100') : ''}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={activeView === tab.id ? "2.5" : "2"} strokeLinecap="round" strokeLinejoin="round">
-                <path d={tab.icon}/>
-              </svg>
+              {tab.isUrl ? (
+                <div 
+                  style={{ 
+                    maskImage: `url(${tab.icon})`, 
+                    WebkitMaskImage: `url(${tab.icon})`,
+                    maskRepeat: 'no-repeat',
+                    WebkitMaskRepeat: 'no-repeat',
+                    maskSize: 'contain',
+                    WebkitMaskSize: 'contain'
+                  }}
+                  className="w-[22px] h-[22px] bg-current" 
+                />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={activeView === tab.id ? "2.5" : "2"} strokeLinecap="round" strokeLinejoin="round">
+                  <path d={tab.icon as string}/>
+                </svg>
+              )}
             </div>
             <span className={`text-[9px] font-bold uppercase tracking-tighter ${activeView === tab.id ? 'opacity-100' : 'opacity-70'}`}>
               {tab.label}
@@ -624,24 +669,46 @@ const App: React.FC = () => {
                   placeholder="Nome completo"
                 />
               </div>
+              
+              {/* IMPROVED MINISTRY SELECTION */}
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Ministério / Depto</label>
-                <Select 
-                  value={loanForm.ministry}
-                  onChange={e => setLoanForm({...loanForm, ministry: e.target.value})}
-                >
-                  <option value="">Selecione...</option>
-                  {MINISTRIES.map(m => <option key={m} value={m}>{m}</option>)}
-                </Select>
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Ministério / Depto</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {MINISTRIES.map(m => {
+                    const isSelected = loanForm.ministry === m;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setLoanForm({...loanForm, ministry: m})}
+                        className={`group relative flex items-center justify-center px-2 py-3 text-[10px] font-bold uppercase rounded-lg border transition-all duration-200 text-center leading-tight ${
+                          isSelected 
+                            ? (isDark ? 'bg-white text-black border-white ring-2 ring-zinc-400 ring-offset-2 ring-offset-black' : 'bg-black text-white border-black ring-2 ring-zinc-500 ring-offset-2 ring-offset-white')
+                            : (isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:bg-zinc-800' : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:border-zinc-300 hover:bg-zinc-100')
+                        }`}
+                      >
+                        {m}
+                        {isSelected && (
+                          <div className="absolute top-1 right-1">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
                 {loanForm.ministry === 'Outro' && (
-                  <Input 
-                    className="mt-2"
-                    placeholder="Nome do departamento..."
-                    value={loanForm.otherMinistry}
-                    onChange={e => setLoanForm({...loanForm, otherMinistry: e.target.value})}
-                  />
+                  <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                    <Input 
+                      placeholder="Qual outro departamento?"
+                      value={loanForm.otherMinistry}
+                      onChange={e => setLoanForm({...loanForm, otherMinistry: e.target.value})}
+                      autoFocus
+                    />
+                  </div>
                 )}
               </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Motivo</label>
                 <Input 

@@ -39,8 +39,11 @@ export const MINISTRIES = [
   'Louvor',
   'Infantil',
   'Jovens',
-  'Missões',
-  'Som e Imagem',
+  'Rede de Família',
+  'Rede de Casais',
+  'Rede de Homens',
+  'Rede de Mulheres',
+  'Mídia',
   'Outro'
 ];
 
