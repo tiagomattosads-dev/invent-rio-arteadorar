@@ -1,5 +1,6 @@
+
 export type ItemStatus = 'Disponível' | 'Emprestado';
-export type ItemCondition = 'Novo' | 'Bom' | 'Avariado';
+export type ItemCondition = 'Novo' | 'Boas Condições' | 'Danificado';
 export type LoanStatus = 'Ativo' | 'Concluído';
 
 export interface Category {

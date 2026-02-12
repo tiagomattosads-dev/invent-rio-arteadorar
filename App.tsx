@@ -24,9 +24,14 @@ import {
 } from './components/UI';
 import CameraCapture from './components/CameraCapture';
 import SignatureCanvas from './components/SignatureCanvas';
+import Login from './components/Login';
 
 const App: React.FC = () => {
-  // --- STATE ---
+  // --- AUTH STATE ---
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // --- APP STATE ---
   const [activeView, setActiveView] = useState<ViewType>('inventory');
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -60,7 +65,7 @@ const App: React.FC = () => {
 
   // Return Form State
   const [returnForm, setReturnForm] = useState({
-    condition: 'Bom' as ItemCondition,
+    condition: 'Boas Condições' as ItemCondition,
     observations: ''
   });
 
@@ -69,6 +74,11 @@ const App: React.FC = () => {
 
   // --- INITIALIZATION ---
   useEffect(() => {
+    // Check Auth
+    const logged = storageService.isLoggedIn();
+    setIsLoggedIn(logged);
+    setAuthLoading(false);
+
     const storedCats = storageService.getCategories();
     const storedItems = storageService.getItems();
     const storedLoans = storageService.getLoans();
@@ -105,6 +115,18 @@ const App: React.FC = () => {
   }, [theme]);
 
   // --- HANDLERS ---
+  const handleLogin = () => {
+    storageService.setLoggedIn(true);
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    if (confirm('Deseja realmente sair do sistema?')) {
+      storageService.setLoggedIn(false);
+      setIsLoggedIn(false);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -227,6 +249,14 @@ const App: React.FC = () => {
     return [...loans].sort((a,b) => b.loanDate.localeCompare(a.loanDate));
   }, [loans]);
 
+  // Render loading state if checking auth
+  if (authLoading) return null;
+
+  // Protect App with Login
+  if (!isLoggedIn) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row ${mainClass}`}>
       <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
@@ -270,6 +300,16 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
+
+        <div className="p-4 border-t border-zinc-900 mt-auto">
+           <button 
+             onClick={handleLogout}
+             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition-all"
+           >
+             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+             Sair do Sistema
+           </button>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-24 lg:pb-10">
@@ -354,8 +394,14 @@ const App: React.FC = () => {
                       <Button 
                         variant="secondary" 
                         className="px-2"
-                        onClick={() => { setItemForm(item); setIsItemModalOpen(true); }}
-                        title="Editar item"
+                        disabled={item.status === 'Emprestado'}
+                        onClick={() => { 
+                          if (item.status !== 'Emprestado') {
+                            setItemForm(item); 
+                            setIsItemModalOpen(true); 
+                          }
+                        }}
+                        title={item.status === 'Emprestado' ? "Item em uso (devolva para editar)" : "Editar item"}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                       </Button>
@@ -583,6 +629,17 @@ const App: React.FC = () => {
 
                 <Card className="p-8 space-y-4">
                   <div>
+                    <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-zinc-900'}`}>Sessão do Usuário</h3>
+                    <p className="text-sm text-zinc-500">Gerenciar o acesso atual ao sistema.</p>
+                  </div>
+                  <Button variant="danger" fullWidth onClick={handleLogout}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                    Encerrar Sessão
+                  </Button>
+                </Card>
+
+                <Card className="p-8 space-y-4">
+                  <div>
                     <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-zinc-900'}`}>Gestão de Dados</h3>
                     <p className="text-sm text-zinc-500">Backup em formato JSON ou redefinição total do banco local.</p>
                   </div>
@@ -796,93 +853,109 @@ const App: React.FC = () => {
         title={itemForm.id ? 'Ficha do Item' : 'Novo Item no Acervo'}
       >
         <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Nome Identificador</label>
-              <Input 
-                value={itemForm.name || ''} 
-                onChange={e => setItemForm({...itemForm, name: e.target.value})}
-                placeholder="Ex: Capa de Rei Vermelha"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Código de Controle</label>
-              <div className="flex gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Nome Identificador</label>
                 <Input 
-                  value={itemForm.code || ''} 
-                  onChange={e => setItemForm({...itemForm, code: e.target.value})}
-                  placeholder="Ex: FIG-012"
+                  value={itemForm.name || ''} 
+                  onChange={e => setItemForm({...itemForm, name: e.target.value})}
+                  placeholder="Ex: Capa de Rei Vermelha"
                 />
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={handleGenerateCode}
-                  className="shrink-0"
-                >
-                  Gerar
-                </Button>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Código de Controle</label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={itemForm.code || ''} 
+                    onChange={e => setItemForm({...itemForm, code: e.target.value})}
+                    placeholder="Ex: FIG-012"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={handleGenerateCode}
+                    className="shrink-0"
+                  >
+                    Gerar
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Categoria</label>
+                  <Select 
+                    value={itemForm.categoryId || ''} 
+                    onChange={e => setItemForm({...itemForm, categoryId: e.target.value})}
+                  >
+                    <option value="">Selecione...</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Quantidade</label>
+                  <Input 
+                    type="number"
+                    min="1"
+                    value={itemForm.quantity || 1} 
+                    onChange={e => setItemForm({...itemForm, quantity: parseInt(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Local</label>
+                  <Input 
+                    value={itemForm.location || ''} 
+                    onChange={e => setItemForm({...itemForm, location: e.target.value})}
+                    placeholder="Ex: Caixa 04"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Condição</label>
+                  <Select 
+                    value={itemForm.condition || 'Boas Condições'} 
+                    onChange={e => setItemForm({...itemForm, condition: e.target.value as any})}
+                  >
+                    {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </Select>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Categoria</label>
-              <Select 
-                value={itemForm.categoryId || ''} 
-                onChange={e => setItemForm({...itemForm, categoryId: e.target.value})}
-              >
-                <option value="">Selecione...</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-            </div>
-             <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Quantidade Total</label>
-              <Input 
-                type="number"
-                min="1"
-                value={itemForm.quantity || 1} 
-                onChange={e => setItemForm({...itemForm, quantity: parseInt(e.target.value)})}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Local de Armazenamento</label>
-              <Input 
-                value={itemForm.location || ''} 
-                onChange={e => setItemForm({...itemForm, location: e.target.value})}
-                placeholder="Ex: Caixa 04, Setor Sul"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Condição Atual</label>
-              <Select 
-                value={itemForm.condition || 'Bom'} 
-                onChange={e => setItemForm({...itemForm, condition: e.target.value as any})}
-              >
-                {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </Select>
+
+            {/* FOTO DO ITEM SECTION */}
+            <div className="space-y-4">
+              <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Foto do Item</label>
+              {itemForm.imageUrl ? (
+                <div className={`relative rounded-xl overflow-hidden border-2 ${isDark ? 'border-zinc-800' : 'border-zinc-200 shadow-inner'}`}>
+                  <img src={itemForm.imageUrl} className="w-full aspect-square object-cover" />
+                  <button 
+                    onClick={() => setItemForm({...itemForm, imageUrl: ''})}
+                    className="absolute top-3 right-3 p-2 bg-black/70 hover:bg-black rounded-full text-white backdrop-blur-sm transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </div>
+              ) : (
+                <CameraCapture 
+                  onCapture={(img) => setItemForm({...itemForm, imageUrl: img})} 
+                  onCancel={() => {}} 
+                />
+              )}
             </div>
           </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">URL da Imagem (Opcional)</label>
-            <Input 
-              value={itemForm.imageUrl || ''} 
-              onChange={e => setItemForm({...itemForm, imageUrl: e.target.value})}
-              placeholder="https://sua-imagem.com/foto.jpg"
-            />
-          </div>
+          
           <div>
             <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Observações Técnicas</label>
             <textarea 
               className={`w-full border rounded-xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all ${isDark ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-black'}`}
-              rows={4}
+              rows={3}
               placeholder="Detalhes sobre tecido, fragilidade ou histórico..."
               value={itemForm.observations || ''}
               onChange={e => setItemForm({...itemForm, observations: e.target.value})}
             />
           </div>
-          <div className="flex justify-end gap-3 pt-6">
+          <div className="flex justify-end gap-3 pt-6 border-t border-zinc-900">
              {itemForm.id && (
               <Button variant="danger" className="mr-auto" onClick={() => {
                 if (confirm('Deletar este item permanentemente do acervo?')) {

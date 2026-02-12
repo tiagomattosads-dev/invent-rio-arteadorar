@@ -15,7 +15,7 @@ export const INITIAL_ITEMS: Item[] = [
     categoryId: '1',
     code: 'FIG-001',
     quantity: 5,
-    condition: 'Bom',
+    condition: 'Boas Condições',
     location: 'Prateleira A2',
     imageUrl: 'https://picsum.photos/seed/tunica/400/400',
     status: 'Disponível'
@@ -47,8 +47,8 @@ export const MINISTRIES = [
   'Outro'
 ];
 
-export const CONDITIONS: { label: string; value: 'Novo' | 'Bom' | 'Avariado' }[] = [
+export const CONDITIONS: { label: string; value: 'Novo' | 'Boas Condições' | 'Danificado' }[] = [
   { label: 'Novo', value: 'Novo' },
-  { label: 'Bom / OK', value: 'Bom' },
-  { label: 'Avariado', value: 'Avariado' }
+  { label: 'Boas Condições', value: 'Boas Condições' },
+  { label: 'Danificado', value: 'Danificado' }
 ];

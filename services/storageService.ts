@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   CATEGORIES: 'acervo_categories',
   ITEMS: 'acervo_items',
   LOANS: 'acervo_loans',
-  THEME: 'acervo_theme'
+  THEME: 'acervo_theme',
+  AUTH: 'acervo_logged_in'
 };
 
 export const storageService = {
@@ -38,5 +39,12 @@ export const storageService = {
   },
   getTheme: (): 'light' | 'dark' | null => {
     return localStorage.getItem(STORAGE_KEYS.THEME) as 'light' | 'dark' | null;
+  },
+
+  setLoggedIn: (status: boolean) => {
+    localStorage.setItem(STORAGE_KEYS.AUTH, status ? 'true' : 'false');
+  },
+  isLoggedIn: (): boolean => {
+    return localStorage.getItem(STORAGE_KEYS.AUTH) === 'true';
   }
 };
