@@ -8,30 +8,7 @@ export const INITIAL_CATEGORIES: Category[] = [
   { id: '4', name: 'Maquiagem' },
 ];
 
-export const INITIAL_ITEMS: Item[] = [
-  {
-    id: 'item-1',
-    name: 'Túnica Romana Branca',
-    categoryId: '1',
-    code: 'FIG-001',
-    quantity: 5,
-    condition: 'Boas Condições',
-    location: 'Prateleira A2',
-    imageUrl: 'https://picsum.photos/seed/tunica/400/400',
-    status: 'Disponível'
-  },
-  {
-    id: 'item-2',
-    name: 'Cajado de Madeira',
-    categoryId: '2',
-    code: 'CEN-042',
-    quantity: 2,
-    condition: 'Novo',
-    location: 'Canto dos Cenários',
-    imageUrl: 'https://picsum.photos/seed/cajado/400/400',
-    status: 'Disponível'
-  }
-];
+export const INITIAL_ITEMS: Item[] = [];
 
 export const MINISTRIES = [
   'Teatro',
