@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
@@ -94,7 +95,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     storageService.saveTheme(theme);
-    // Apply theme to body for global consistency
     if (theme === 'light') {
       document.body.classList.remove('bg-black', 'text-white');
       document.body.classList.add('bg-white', 'text-black');
@@ -113,10 +113,6 @@ const App: React.FC = () => {
       return matchesSearch && matchesCat;
     });
   }, [items, search, catFilter]);
-
-  const borrowedItems = useMemo(() => {
-    return items.filter(item => item.status === 'Emprestado');
-  }, [items]);
 
   const handleGenerateCode = () => {
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -148,7 +144,6 @@ const App: React.FC = () => {
     setLoans([...loans, newLoan]);
     setItems(items.map(i => i.id === selectedItem.id ? { ...i, status: 'Emprestado' } : i));
     
-    // Reset and Close
     setIsLoanModalOpen(false);
     setLoanForm({
       borrowerName: '',
@@ -200,7 +195,11 @@ const App: React.FC = () => {
     setItemForm({});
   };
 
-  // --- THEME STYLES HELPER ---
+  const handleViewLoanDetails = (loan: Loan) => {
+    setSelectedLoan(loan);
+    setIsDetailModalOpen(true);
+  };
+
   const isDark = theme === 'dark';
   const sidebarClass = isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-50 border-zinc-200';
   const mobileNavClass = isDark ? 'bg-zinc-950/90 border-zinc-900 backdrop-blur-md' : 'bg-white/90 border-zinc-200 backdrop-blur-md shadow-[0_-2px_10px_rgba(0,0,0,0.05)]';
@@ -209,16 +208,13 @@ const App: React.FC = () => {
 
   const NAV_ITEMS = [
     { id: 'inventory', label: 'Itens', icon: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
-    { id: 'borrowed', label: 'Emprestados', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-    { id: 'loans', label: 'Empréstimos', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4' },
+    { id: 'loans', label: 'Emprestados', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 11l2 2 4-4' },
     { id: 'categories', label: 'Categorias', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'settings', label: 'Ajustes', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1 0 4 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 0-4 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z' }
   ];
 
-  // --- RENDERING ---
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row ${mainClass}`}>
-      {/* Sidebar Navigation - DESKTOP ONLY (Large screens 1024px+) */}
       <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
         <div className="p-8">
           <h1 className={`text-xl font-bold tracking-tighter flex items-center gap-2 ${isDark ? 'text-white' : 'text-black'}`}>
@@ -248,10 +244,8 @@ const App: React.FC = () => {
         </nav>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-6 md:p-10 pb-24 lg:pb-10">
         
-        {/* INVENTORY VIEW */}
         {activeView === 'inventory' && (
           <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -317,10 +311,17 @@ const App: React.FC = () => {
                       <Button 
                         fullWidth 
                         variant={item.status === 'Disponível' ? 'primary' : 'outline'}
-                        disabled={item.status !== 'Disponível'}
-                        onClick={() => { setSelectedItem(item); setIsLoanModalOpen(true); }}
+                        onClick={() => { 
+                          if (item.status === 'Disponível') {
+                            setSelectedItem(item); 
+                            setIsLoanModalOpen(true); 
+                          } else {
+                            const loan = loans.find(l => l.itemId === item.id && l.status === 'Ativo');
+                            if (loan) handleViewLoanDetails(loan);
+                          }
+                        }}
                       >
-                        {item.status === 'Disponível' ? 'Emprestar' : 'Emprestado'}
+                        {item.status === 'Disponível' ? 'Emprestar' : 'Ver Empréstimo'}
                       </Button>
                       <Button 
                         variant="secondary" 
@@ -343,73 +344,10 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* BORROWED VIEW */}
-        {activeView === 'borrowed' && (
-          <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <header>
-              <h2 className="text-3xl font-bold tracking-tight">Itens Emprestados</h2>
-              <p className="text-zinc-500">Visualização rápida de todos os itens que estão fora do acervo.</p>
-            </header>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {borrowedItems.map(item => (
-                <Card key={item.id} className="group flex flex-col h-full">
-                  <div className={`aspect-[4/3] relative overflow-hidden ${isDark ? 'bg-zinc-900' : 'bg-zinc-100'}`}>
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-                      </div>
-                    )}
-                    <div className="absolute top-3 left-3 flex flex-wrap gap-2 pointer-events-none">
-                      <Badge variant="warning">Emprestado</Badge>
-                      <Badge>{item.condition}</Badge>
-                    </div>
-                  </div>
-                  <div className="p-5 flex flex-col flex-1 gap-4">
-                    <div className="flex-1">
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">{categories.find(c => c.id === item.categoryId)?.name} • {item.code}</span>
-                      <h3 className={`text-lg font-bold truncate leading-tight mt-1 ${isDark ? 'text-white' : 'text-zinc-900'}`}>{item.name}</h3>
-                      <div className="mt-2 text-xs text-zinc-500">
-                        {loans.find(l => l.itemId === item.id && l.status === 'Ativo')?.borrowerName && (
-                          <div className="flex items-center gap-2">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                             Com: {loans.find(l => l.itemId === item.id && l.status === 'Ativo')?.borrowerName}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <Button 
-                      fullWidth 
-                      variant="secondary"
-                      onClick={() => {
-                        const loan = loans.find(l => l.itemId === item.id && l.status === 'Ativo');
-                        if (loan) {
-                          setSelectedLoan(loan);
-                          setIsReturnModalOpen(true);
-                        }
-                      }}
-                    >
-                      Processar Devolução
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-              {borrowedItems.length === 0 && (
-                <div className="col-span-full py-20 text-center text-zinc-500 bg-zinc-50 dark:bg-zinc-900/20 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                  <p>Não há itens emprestados no momento.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* LOANS VIEW */}
         {activeView === 'loans' && (
           <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <header>
-              <h2 className="text-3xl font-bold tracking-tight">Empréstimos</h2>
+              <h2 className="text-3xl font-bold tracking-tight">Itens Emprestados</h2>
               <p className="text-zinc-500">Acompanhe retiradas e devoluções em tempo real.</p>
             </header>
 
@@ -432,7 +370,11 @@ const App: React.FC = () => {
                     </tr>
                   ) : (
                     loans.sort((a,b) => b.loanDate.localeCompare(a.loanDate)).map(loan => (
-                      <tr key={loan.id} className={`${isDark ? 'hover:bg-zinc-900/30' : 'hover:bg-zinc-50/50'} transition-colors`}>
+                      <tr 
+                        key={loan.id} 
+                        className={`${isDark ? 'hover:bg-zinc-900/30' : 'hover:bg-zinc-50/50'} transition-colors cursor-pointer group`}
+                        onClick={() => handleViewLoanDetails(loan)}
+                      >
                         <td className="px-6 py-4">
                           <div className={`font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>{loan.itemName}</div>
                           <div className="text-[10px] text-zinc-500 font-mono">ID: {loan.itemId.slice(0,8).toUpperCase()}</div>
@@ -461,9 +403,9 @@ const App: React.FC = () => {
                             {loan.status}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           {loan.status === 'Ativo' ? (
-                            <Button variant="secondary" size="sm" onClick={() => { setSelectedLoan(loan); setIsReturnModalOpen(true); }}>
+                            <Button variant="secondary" onClick={() => { setSelectedLoan(loan); setIsReturnModalOpen(true); }}>
                               Devolver
                             </Button>
                           ) : (
@@ -482,7 +424,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* CATEGORIES VIEW */}
         {activeView === 'categories' && (
           <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <header>
@@ -529,7 +470,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* SETTINGS VIEW */}
         {activeView === 'settings' && (
           <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <header>
@@ -576,7 +516,7 @@ const App: React.FC = () => {
                       a.download = `acervo_backup_${new Date().toISOString().split('T')[0]}.json`;
                       a.click();
                     }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                       Exportar Backup
                     </Button>
                     <Button variant="danger" fullWidth onClick={() => {
@@ -595,7 +535,6 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Mobile/Tablet Bottom Navigation Bar - VISIBLE ONLY ON SCREENS BELOW 1024px */}
       <nav className={`lg:hidden fixed bottom-0 left-0 right-0 h-20 border-t flex items-center justify-around px-2 z-40 no-print ${mobileNavClass}`}>
         {NAV_ITEMS.map(tab => (
           <button
@@ -619,7 +558,6 @@ const App: React.FC = () => {
         ))}
       </nav>
 
-      {/* MODALS */}
       {/* LOAN MODAL */}
       <Modal 
         isOpen={isLoanModalOpen} 
@@ -698,7 +636,7 @@ const App: React.FC = () => {
             <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Assinatura Digital</label>
             {loanForm.signature ? (
                <div className={`relative rounded-xl overflow-hidden border p-6 flex items-center justify-center ${isDark ? 'border-zinc-800 bg-zinc-900' : 'border-zinc-200 bg-zinc-50 shadow-inner'}`}>
-                <img src={loanForm.signature} className="h-24 object-contain invert-0 dark:invert" />
+                <img src={loanForm.signature} className="h-24 object-contain" />
                 <button 
                   onClick={() => setLoanForm({...loanForm, signature: ''})}
                   className="absolute top-3 right-3 p-2 bg-black/70 hover:bg-black rounded-full text-white backdrop-blur-sm"
@@ -710,6 +648,7 @@ const App: React.FC = () => {
               <SignatureCanvas 
                 onSave={(sig) => setLoanForm({...loanForm, signature: sig})} 
                 onClear={() => {}} 
+                isDark={isDark}
               />
             )}
           </div>
@@ -890,6 +829,70 @@ const App: React.FC = () => {
             <Button onClick={handleReturnItem} variant="primary">Confirmar e Disponibilizar</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* LOAN DETAIL MODAL */}
+      <Modal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        title="Detalhes do Empréstimo"
+      >
+        {selectedLoan && (
+          <div className="space-y-6">
+            <div className={`relative aspect-square md:aspect-video rounded-xl overflow-hidden border ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200 shadow-inner'}`}>
+              <img src={selectedLoan.borrowerPhoto} className="w-full h-full object-cover" alt="Foto do Responsável" />
+              <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex items-end justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-white tracking-tight">{selectedLoan.borrowerName}</h3>
+                  <p className="text-zinc-300 text-sm font-bold uppercase tracking-widest">{selectedLoan.ministry}</p>
+                </div>
+                <Badge variant={selectedLoan.status === 'Ativo' ? 'warning' : 'success'}>{selectedLoan.status}</Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <section>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Item Retirado</label>
+                  <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-black'}`}>{selectedLoan.itemName}</p>
+                  <p className="text-xs text-zinc-500 font-mono">Cód: {selectedLoan.itemId.slice(0,8).toUpperCase()}</p>
+                </section>
+                <section>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Finalidade</label>
+                  <p className={`text-sm italic ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>"{selectedLoan.reason || 'Não informado'}"</p>
+                </section>
+              </div>
+              
+              <div className="space-y-4">
+                <section>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Cronograma</label>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-500">Retirada:</span>
+                      <span className="font-bold tabular-nums">{new Date(selectedLoan.loanDate).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-zinc-500">Devolução Prevista:</span>
+                      <span className={`font-bold tabular-nums ${new Date() > new Date(selectedLoan.dueDate) && selectedLoan.status === 'Ativo' ? 'text-red-500' : ''}`}>
+                        {new Date(selectedLoan.dueDate).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+                <section className="pt-2 border-t dark:border-zinc-900 border-zinc-200">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Assinatura</label>
+                  <div className={`h-16 flex items-center justify-start p-2 rounded border ${isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-50 border-zinc-200 shadow-inner'}`}>
+                    <img src={selectedLoan.signature} className="h-full object-contain" alt="Assinatura" />
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button variant="primary" fullWidth onClick={() => setIsDetailModalOpen(false)}>Fechar Detalhes</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
     </div>

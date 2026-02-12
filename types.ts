@@ -1,4 +1,3 @@
-
 export type ItemStatus = 'Disponível' | 'Emprestado';
 export type ItemCondition = 'Novo' | 'Bom' | 'Avariado';
 export type LoanStatus = 'Ativo' | 'Concluído';
@@ -38,4 +37,4 @@ export interface Loan {
   status: LoanStatus;
 }
 
-export type ViewType = 'inventory' | 'borrowed' | 'loans' | 'categories' | 'settings';
+export type ViewType = 'inventory' | 'loans' | 'categories' | 'settings';
