@@ -1,28 +1,71 @@
 
 import React, { useState } from 'react';
 import { Button, Input, Card } from './UI';
+import { supabase } from '../services/supabaseClient';
 
 interface LoginProps {
   onLogin: () => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
+  const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      alert('Preencha todos os campos.');
+    setLoading(true);
+    
+    try {
+      if (isRegistering) {
+        if (!name || !email || !password || !confirmPassword) {
+          alert('Por favor, preencha todos os campos.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          alert('As senhas não coincidem.');
+          return;
+        }
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name } }
+        });
+        if (error) throw error;
+        alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
+        setIsRegistering(false);
+      } else {
+        if (!email || !password) {
+          alert('Preencha todos os campos.');
+          return;
+        }
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        onLogin();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Erro ao processar. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      alert('Digite seu email primeiro.');
       return;
     }
-    setLoading(true);
-    // Simulando delay de autenticação
-    setTimeout(() => {
-      onLogin();
-      setLoading(false);
-    }, 800);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      alert('Se esse email existir, enviamos um link para redefinir sua senha.');
+    } catch (err: any) {
+      alert(err.message);
+    }
   };
 
   return (
@@ -32,12 +75,28 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white text-black mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-1.9a1.9 1.9 0 0 0 0-2.6L4.1 15.7a1.9 1.9 0 0 1 0-2.6L12 5.2a1.9 1.9 0 0 1 2.6 0l.8.8a1.9 1.9 0 0 0 2.6 0l1.9-1.9a1.9 1.9 0 0 1 2.6 0l.5.5"/><path d="m15 15 6 6"/><path d="m17.5 17.5 2.5 2.5"/></svg>
           </div>
-          <h1 className="text-2xl font-bold tracking-tighter text-white">ACERVO TEATRO</h1>
-          <p className="text-zinc-500 text-xs uppercase tracking-widest mt-2">Acesso Restrito ao Ministério</p>
+          <h1 className="text-2xl font-bold tracking-tighter text-white uppercase">
+            {isRegistering ? 'Criar Conta' : 'Acervo Teatro'}
+          </h1>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-2">
+            {isRegistering ? 'Cadastre-se para gerenciar o acervo' : 'Acesso Restrito ao Ministério'}
+          </p>
         </div>
 
         <Card className="p-8 border-zinc-900 bg-zinc-950/50 backdrop-blur-xl">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {isRegistering && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Nome Completo</label>
+                <Input 
+                  type="text" 
+                  placeholder="Seu nome" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <div>
               <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">E-mail</label>
               <Input 
@@ -58,15 +117,46 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 required
               />
             </div>
+            {isRegistering && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Confirmar Senha</label>
+                <Input 
+                  type="password" 
+                  placeholder="••••••••" 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <Button 
               type="submit" 
               fullWidth 
               disabled={loading}
-              className="py-3 font-bold"
+              className="py-3 font-bold uppercase tracking-widest"
             >
-              {loading ? 'Autenticando...' : 'Entrar no Sistema'}
+              {loading ? 'Processando...' : (isRegistering ? 'Criar Conta' : 'Entrar no Sistema')}
             </Button>
           </form>
+
+          <div className="mt-6 pt-6 border-t border-zinc-900 text-center flex flex-col gap-4">
+            <button 
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors"
+            >
+              {isRegistering ? 'Já tem conta? Faça Login' : 'Ainda não tem conta? Cadastre-se'}
+            </button>
+            {!isRegistering && (
+              <button 
+                type="button"
+                onClick={handleResetPassword}
+                className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 hover:text-zinc-500 transition-colors"
+              >
+                Esqueci minha senha
+              </button>
+            )}
+          </div>
         </Card>
         
         <p className="text-center text-zinc-600 text-[10px] uppercase tracking-wider mt-8">

@@ -14,6 +14,9 @@ import {
   CONDITIONS 
 } from './constants';
 import { storageService } from './services/storageService';
+import { supabase } from './services/supabaseClient';
+import { dataServiceSupabase } from './services/dataServiceSupabase';
+import { storageServiceSupabase } from './services/storageServiceSupabase';
 import { 
   Button, 
   Input, 
@@ -28,7 +31,7 @@ import Login from './components/Login';
 
 const App: React.FC = () => {
   // --- AUTH STATE ---
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   // --- APP STATE ---
@@ -37,6 +40,7 @@ const App: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [dataLoading, setDataLoading] = useState(false);
   
   // Inventory Filtering
   const [search, setSearch] = useState('');
@@ -74,34 +78,54 @@ const App: React.FC = () => {
 
   // --- INITIALIZATION ---
   useEffect(() => {
-    // Check Auth
-    const logged = storageService.isLoggedIn();
-    setIsLoggedIn(logged);
-    setAuthLoading(false);
+    // Supabase Auth Initialization
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
 
-    const storedCats = storageService.getCategories();
-    const storedItems = storageService.getItems();
-    const storedLoans = storageService.getLoans();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    // Theme remains in local storage as it's a device preference
     const storedTheme = storageService.getTheme();
-
-    setCategories(storedCats || INITIAL_CATEGORIES);
-    setItems(storedItems || INITIAL_ITEMS);
-    setLoans(storedLoans || []);
     if (storedTheme) setTheme(storedTheme);
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Sync to Storage
+  // Fetch Data from Supabase
   useEffect(() => {
-    if (categories.length > 0) storageService.saveCategories(categories);
-  }, [categories]);
+    if (session) {
+      loadAllData();
+    }
+  }, [session]);
 
-  useEffect(() => {
-    if (items.length > 0) storageService.saveItems(items);
-  }, [items]);
-
-  useEffect(() => {
-    storageService.saveLoans(loans);
-  }, [loans]);
+  const loadAllData = async () => {
+    setDataLoading(true);
+    try {
+      const [cats, its, lns] = await Promise.all([
+        dataServiceSupabase.listCategories(),
+        dataServiceSupabase.listItems(),
+        dataServiceSupabase.listLoans()
+      ]);
+      setCategories(cats.length > 0 ? cats : INITIAL_CATEGORIES);
+      setItems(its.length > 0 ? its : INITIAL_ITEMS);
+      setLoans(lns);
+    } catch (err) {
+      console.error("Erro ao carregar dados do Supabase:", err);
+      // Fallback to local storage if supabase fails
+      const storedCats = storageService.getCategories();
+      const storedItems = storageService.getItems();
+      const storedLoans = storageService.getLoans();
+      setCategories(storedCats || INITIAL_CATEGORIES);
+      setItems(storedItems || INITIAL_ITEMS);
+      setLoans(storedLoans || []);
+    } finally {
+      setDataLoading(false);
+    }
+  };
 
   useEffect(() => {
     storageService.saveTheme(theme);
@@ -115,15 +139,9 @@ const App: React.FC = () => {
   }, [theme]);
 
   // --- HANDLERS ---
-  const handleLogin = () => {
-    storageService.setLoggedIn(true);
-    setIsLoggedIn(true);
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (confirm('Deseja realmente sair do sistema?')) {
-      storageService.setLoggedIn(false);
-      setIsLoggedIn(false);
+      await supabase.auth.signOut();
     }
   };
 
@@ -141,80 +159,137 @@ const App: React.FC = () => {
     setItemForm({ ...itemForm, code: `REF-${random}` });
   };
 
-  const handleCreateLoan = () => {
+  const handleCreateLoan = async () => {
     if (!selectedItem) return;
     if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
       alert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
       return;
     }
 
-    const newLoan: Loan = {
-      id: crypto.randomUUID(),
-      itemId: selectedItem.id,
-      itemName: selectedItem.name,
-      borrowerName: loanForm.borrowerName,
-      ministry: loanForm.ministry === 'Outro' ? loanForm.otherMinistry : loanForm.ministry,
-      reason: loanForm.reason,
-      loanDate: new Date().toISOString(),
-      dueDate: loanForm.dueDate,
-      consent: loanForm.consent,
-      borrowerPhoto: loanForm.photo,
-      signature: loanForm.signature,
-      status: 'Ativo'
-    };
+    setDataLoading(true);
+    try {
+      // 1. Upload assets to storage
+      const photoUrl = await storageServiceSupabase.uploadImage(loanForm.photo, "borrowers");
+      const signatureUrl = await storageServiceSupabase.uploadImage(loanForm.signature, "signatures");
 
-    setLoans([...loans, newLoan]);
-    setItems(items.map(i => i.id === selectedItem.id ? { ...i, status: 'Emprestado' } : i));
-    
-    setIsLoanModalOpen(false);
-    setLoanForm({
-      borrowerName: '',
-      borrowerPhone: '',
-      ministry: '',
-      otherMinistry: '',
-      reason: '',
-      dueDate: '',
-      consent: false,
-      photo: '',
-      signature: ''
-    });
-    setSelectedItem(null);
+      // 2. Create Loan record
+      const newLoan: Partial<Loan> = {
+        itemId: selectedItem.id,
+        itemName: selectedItem.name,
+        borrowerName: loanForm.borrowerName,
+        ministry: loanForm.ministry === 'Outro' ? loanForm.otherMinistry : loanForm.ministry,
+        reason: loanForm.reason,
+        loanDate: new Date().toISOString(),
+        dueDate: loanForm.dueDate,
+        consent: loanForm.consent,
+        borrowerPhoto: photoUrl,
+        signature: signatureUrl,
+        status: 'Ativo'
+      };
+
+      await dataServiceSupabase.createLoan(newLoan);
+      
+      // 3. Update Item Status
+      await dataServiceSupabase.updateItem(selectedItem.id, { status: 'Emprestado' });
+
+      // 4. Update local state and close
+      await loadAllData();
+      setIsLoanModalOpen(false);
+      setLoanForm({
+        borrowerName: '',
+        borrowerPhone: '',
+        ministry: '',
+        otherMinistry: '',
+        reason: '',
+        dueDate: '',
+        consent: false,
+        photo: '',
+        signature: ''
+      });
+      setSelectedItem(null);
+    } catch (err: any) {
+      alert("Erro ao criar empréstimo: " + err.message);
+    } finally {
+      setDataLoading(false);
+    }
   };
 
-  const handleReturnItem = () => {
+  const handleReturnItem = async () => {
     if (!selectedLoan) return;
-    
-    const updatedLoans = loans.map(l => 
-      l.id === selectedLoan.id ? { 
-        ...l, 
-        status: 'Concluído' as const, 
+    setDataLoading(true);
+    try {
+      await dataServiceSupabase.updateLoan(selectedLoan.id, {
+        status: 'Concluído',
         returnDate: new Date().toISOString(),
         returnCondition: returnForm.condition
-      } : l
-    );
-    
-    setLoans(updatedLoans);
-    setItems(items.map(i => i.id === selectedLoan.itemId ? { ...i, status: 'Disponível' as const, condition: returnForm.condition } : i));
-    
-    setIsReturnModalOpen(false);
-    setSelectedLoan(null);
+      });
+      
+      await dataServiceSupabase.updateItem(selectedLoan.itemId, {
+        status: 'Disponível',
+        condition: returnForm.condition
+      });
+
+      await loadAllData();
+      setIsReturnModalOpen(false);
+      setSelectedLoan(null);
+    } catch (err: any) {
+      alert("Erro ao devolver item: " + err.message);
+    } finally {
+      setDataLoading(false);
+    }
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!itemForm.name || !itemForm.categoryId) return;
-    
-    if (itemForm.id) {
-      setItems(items.map(i => i.id === itemForm.id ? (itemForm as Item) : i));
-    } else {
-      const newItem: Item = {
-        ...(itemForm as any),
-        id: crypto.randomUUID(),
-        status: 'Disponível'
-      };
-      setItems([...items, newItem]);
+    setDataLoading(true);
+    try {
+      let imageUrl = itemForm.imageUrl;
+      // Se a imagem for um base64 (nova foto capturada), faz upload
+      if (itemForm.imageUrl?.startsWith('data:')) {
+        imageUrl = await storageServiceSupabase.uploadImage(itemForm.imageUrl, "items");
+      }
+
+      const itemData = { ...itemForm, imageUrl };
+
+      if (itemForm.id) {
+        await dataServiceSupabase.updateItem(itemForm.id, itemData);
+      } else {
+        await dataServiceSupabase.createItem({ ...itemData, status: 'Disponível' });
+      }
+      
+      await loadAllData();
+      setIsItemModalOpen(false);
+      setItemForm({});
+    } catch (err: any) {
+      alert("Erro ao salvar item: " + err.message);
+    } finally {
+      setDataLoading(false);
     }
-    setIsItemModalOpen(false);
-    setItemForm({});
+  };
+
+  const handleAddCategory = async (name: string) => {
+    setDataLoading(true);
+    try {
+      await dataServiceSupabase.createCategory(name);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Erro ao criar categoria: " + err.message);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm('Deseja realmente excluir esta categoria?')) return;
+    setDataLoading(true);
+    try {
+      await dataServiceSupabase.deleteCategory(id);
+      await loadAllData();
+    } catch (err: any) {
+      alert("Erro ao excluir categoria: " + err.message);
+    } finally {
+      setDataLoading(false);
+    }
   };
 
   const handleViewLoanDetails = (loan: Loan) => {
@@ -250,15 +325,25 @@ const App: React.FC = () => {
   }, [loans]);
 
   // Render loading state if checking auth
-  if (authLoading) return null;
+  if (authLoading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="text-white text-xs uppercase tracking-widest font-bold animate-pulse">Iniciando Sistema...</div>
+    </div>
+  );
 
   // Protect App with Login
-  if (!isLoggedIn) {
-    return <Login onLogin={handleLogin} />;
+  if (!session) {
+    return <Login onLogin={() => {}} />;
   }
 
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row ${mainClass}`}>
+      {dataLoading && (
+        <div className="fixed top-0 left-0 right-0 h-1 z-[100] overflow-hidden bg-zinc-900">
+           <div className="h-full bg-white animate-[loading_1.5s_infinite] w-1/3"></div>
+        </div>
+      )}
+
       <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
         <div className="p-8">
           <h1 className={`text-xl font-bold tracking-tighter flex items-center gap-2 ${isDark ? 'text-white' : 'text-black'}`}>
@@ -565,7 +650,7 @@ const App: React.FC = () => {
                   const form = e.target as HTMLFormElement;
                   const name = (form.elements.namedItem('catName') as HTMLInputElement).value;
                   if (name) {
-                    setCategories([...categories, { id: crypto.randomUUID(), name }]);
+                    handleAddCategory(name);
                     form.reset();
                   }
                 }}
@@ -581,11 +666,7 @@ const App: React.FC = () => {
                     <Button 
                       variant="danger" 
                       className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1"
-                      onClick={() => {
-                        if(confirm('Isso pode afetar itens associados. Confirmar?')) {
-                          setCategories(categories.filter(c => c.id !== cat.id));
-                        }
-                      }}
+                      onClick={() => handleDeleteCategory(cat.id)}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                     </Button>
@@ -630,7 +711,7 @@ const App: React.FC = () => {
                 <Card className="p-8 space-y-4">
                   <div>
                     <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-zinc-900'}`}>Sessão do Usuário</h3>
-                    <p className="text-sm text-zinc-500">Gerenciar o acesso atual ao sistema.</p>
+                    <p className="text-sm text-zinc-500">Gerenciar o acesso atual ao sistema ({session?.user?.email}).</p>
                   </div>
                   <Button variant="danger" fullWidth onClick={handleLogout}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
@@ -641,7 +722,7 @@ const App: React.FC = () => {
                 <Card className="p-8 space-y-4">
                   <div>
                     <h3 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-zinc-900'}`}>Gestão de Dados</h3>
-                    <p className="text-sm text-zinc-500">Backup em formato JSON ou redefinição total do banco local.</p>
+                    <p className="text-sm text-zinc-500">Backup em formato JSON.</p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Button variant="secondary" fullWidth onClick={() => {
@@ -655,15 +736,6 @@ const App: React.FC = () => {
                     }}>
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                       Exportar Backup
-                    </Button>
-                    <Button variant="danger" fullWidth onClick={() => {
-                      if (confirm('ATENÇÃO: Isso apagará todos os dados do navegador. Continuar?')) {
-                        localStorage.clear();
-                        window.location.reload();
-                      }
-                    }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                      Limpar Tudo
                     </Button>
                   </div>
                 </Card>
@@ -727,7 +799,6 @@ const App: React.FC = () => {
                 />
               </div>
               
-              {/* IMPROVED MINISTRY SELECTION */}
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Ministério / Depto</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -840,8 +911,10 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="secondary" onClick={() => setIsLoanModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateLoan} variant="primary">Confirmar Saída</Button>
+            <Button variant="secondary" onClick={() => setIsLoanModalOpen(false)} disabled={dataLoading}>Cancelar</Button>
+            <Button onClick={handleCreateLoan} variant="primary" disabled={dataLoading}>
+              {dataLoading ? 'Enviando...' : 'Confirmar Saída'}
+            </Button>
           </div>
         </div>
       </Modal>
@@ -923,7 +996,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* FOTO DO ITEM SECTION */}
             <div className="space-y-4">
               <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Foto do Item</label>
               {itemForm.imageUrl ? (
@@ -957,15 +1029,23 @@ const App: React.FC = () => {
           </div>
           <div className="flex justify-end gap-3 pt-6 border-t border-zinc-900">
              {itemForm.id && (
-              <Button variant="danger" className="mr-auto" onClick={() => {
+              <Button variant="danger" className="mr-auto" onClick={async () => {
                 if (confirm('Deletar este item permanentemente do acervo?')) {
-                  setItems(items.filter(i => i.id !== itemForm.id));
-                  setIsItemModalOpen(false);
+                  setDataLoading(true);
+                  try {
+                    await dataServiceSupabase.deleteItem(itemForm.id!);
+                    await loadAllData();
+                    setIsItemModalOpen(false);
+                  } finally {
+                    setDataLoading(false);
+                  }
                 }
-              }}>Excluir Registro</Button>
+              }} disabled={dataLoading}>Excluir Registro</Button>
             )}
-            <Button variant="secondary" onClick={() => setIsItemModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveItem} variant="primary">Salvar Alterações</Button>
+            <Button variant="secondary" onClick={() => setIsItemModalOpen(false)} disabled={dataLoading}>Cancelar</Button>
+            <Button onClick={handleSaveItem} variant="primary" disabled={dataLoading}>
+              {dataLoading ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
           </div>
         </div>
       </Modal>
@@ -1014,8 +1094,10 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button variant="secondary" onClick={() => setIsReturnModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleReturnItem} variant="primary">Confirmar e Disponibilizar</Button>
+            <Button variant="secondary" onClick={() => setIsReturnModalOpen(false)} disabled={dataLoading}>Cancelar</Button>
+            <Button onClick={handleReturnItem} variant="primary" disabled={dataLoading}>
+              {dataLoading ? 'Processando...' : 'Confirmar e Disponibilizar'}
+            </Button>
           </div>
         </div>
       </Modal>
