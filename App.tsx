@@ -213,6 +213,10 @@ const App: React.FC = () => {
     { id: 'settings', label: 'Ajustes', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1 0 4 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 0-4 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z' }
   ];
 
+  const sortedLoans = useMemo(() => {
+    return [...loans].sort((a,b) => b.loanDate.localeCompare(a.loanDate));
+  }, [loans]);
+
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row ${mainClass}`}>
       <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
@@ -351,7 +355,8 @@ const App: React.FC = () => {
               <p className="text-zinc-500">Acompanhe retiradas e devoluções em tempo real.</p>
             </header>
 
-            <div className={`overflow-x-auto border rounded-xl shadow-sm ${isDark ? 'bg-zinc-950 border-zinc-900 shadow-none' : 'bg-white border-zinc-200'}`}>
+            {/* DESKTOP TABLE VIEW */}
+            <div className={`hidden lg:block overflow-x-auto border rounded-xl shadow-sm ${isDark ? 'bg-zinc-950 border-zinc-900 shadow-none' : 'bg-white border-zinc-200'}`}>
               <table className="w-full text-sm text-left">
                 <thead className={`text-xs uppercase border-b ${isDark ? 'bg-zinc-900/50 text-zinc-500 border-zinc-900' : 'bg-zinc-50 text-zinc-500 border-zinc-200'}`}>
                   <tr>
@@ -369,7 +374,7 @@ const App: React.FC = () => {
                       <td colSpan={6} className="px-6 py-20 text-center text-zinc-400">Nenhum registro de empréstimo.</td>
                     </tr>
                   ) : (
-                    loans.sort((a,b) => b.loanDate.localeCompare(a.loanDate)).map(loan => (
+                    sortedLoans.map(loan => (
                       <tr 
                         key={loan.id} 
                         className={`${isDark ? 'hover:bg-zinc-900/30' : 'hover:bg-zinc-50/50'} transition-colors cursor-pointer group`}
@@ -420,6 +425,50 @@ const App: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* MOBILE SIMPLIFIED VIEW */}
+            <div className="lg:hidden space-y-4">
+              {loans.length === 0 ? (
+                <div className="py-20 text-center text-zinc-400 border border-dashed border-zinc-800 rounded-xl">
+                  Nenhum registro de empréstimo.
+                </div>
+              ) : (
+                sortedLoans.map(loan => (
+                  <Card key={loan.id} className="p-5 space-y-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <h3 className={`font-bold text-lg leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{loan.itemName}</h3>
+                        <p className="text-zinc-500 text-sm mt-1 flex items-center gap-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          {loan.borrowerName}
+                        </p>
+                      </div>
+                      <Badge variant={loan.status === 'Ativo' ? 'warning' : 'success'}>
+                        {loan.status}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="secondary" fullWidth onClick={() => handleViewLoanDetails(loan)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Ver Detalhes
+                      </Button>
+                      {loan.status === 'Ativo' ? (
+                        <Button variant="primary" fullWidth onClick={() => { setSelectedLoan(loan); setIsReturnModalOpen(true); }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                          Devolver
+                        </Button>
+                      ) : (
+                        <div className={`flex items-center justify-center gap-2 border rounded-md text-[10px] font-bold uppercase ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-500' : 'bg-zinc-50 border-zinc-200 text-zinc-400'}`}>
+                           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                           Concluído
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
         )}
