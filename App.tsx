@@ -28,6 +28,7 @@ import {
 import CameraCapture from './components/CameraCapture';
 import SignatureCanvas from './components/SignatureCanvas';
 import Login from './components/Login';
+import ConfirmDialog from './components/ConfirmDialog';
 
 const App: React.FC = () => {
   // --- AUTH STATE ---
@@ -51,6 +52,7 @@ const App: React.FC = () => {
   const [isItemModalOpen, setIsItemModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
 
@@ -139,10 +141,12 @@ const App: React.FC = () => {
   }, [theme]);
 
   // --- HANDLERS ---
-  const handleLogout = async () => {
-    if (confirm('Deseja realmente sair do sistema?')) {
-      await supabase.auth.signOut();
-    }
+  const handleLogout = () => {
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const performLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const filteredItems = useMemo(() => {
@@ -1166,6 +1170,15 @@ const App: React.FC = () => {
         )}
       </Modal>
 
+      <ConfirmDialog 
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        onConfirm={performLogout}
+        title="Sair do sistema"
+        message="Deseja realmente sair do sistema?"
+        confirmLabel="Sair"
+        cancelLabel="Cancelar"
+      />
     </div>
   );
 };
