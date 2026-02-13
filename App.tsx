@@ -39,6 +39,8 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isSplashVisible, setIsSplashVisible] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
 
   // --- APP STATE ---
   const [activeView, setActiveView] = useState<ViewType>('inventory');
@@ -119,6 +121,7 @@ const App: React.FC = () => {
       } else {
         setProfile(null);
         setAuthLoading(false);
+        setSplashDone(false); // Reset splash on logout
       }
     });
 
@@ -128,9 +131,28 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Splash Logic: Show after authLoading finishes and a session exists, for max 4s or until profile loads
+  useEffect(() => {
+    if (!authLoading && session && !splashDone) {
+      setIsSplashVisible(true);
+      const timer = setTimeout(() => {
+        setIsSplashVisible(false);
+        setSplashDone(true);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading, session, splashDone]);
+
+  // Early exit splash if profile is loaded
+  useEffect(() => {
+    if (profile && isSplashVisible) {
+      setIsSplashVisible(false);
+      setSplashDone(true);
+    }
+  }, [profile, isSplashVisible]);
+
   const bootstrapProfile = async (userId: string, email: string) => {
     try {
-      // 1. Verificar se há convite pendente para resgate
       const pendingCode = localStorage.getItem('pending_invite_code');
       if (pendingCode) {
         try {
@@ -141,10 +163,8 @@ const App: React.FC = () => {
         }
       }
 
-      // 2. Buscar perfil
       let userProfile = await dataServiceSupabase.getProfile(userId);
       
-      // 3. Criar perfil básico se ainda não existir
       if (!userProfile) {
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,
@@ -476,6 +496,33 @@ const App: React.FC = () => {
     return <Login onLogin={() => {}} />;
   }
 
+  // Splash Screen Overlay
+  if (isSplashVisible) {
+    const userName = profile?.display_name || session?.user?.email?.split('@')[0] || 'Usuário';
+    return (
+      <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500 ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
+        <div className="flex flex-col items-center gap-6">
+          <div className={`w-24 h-24 p-4 rounded-3xl overflow-hidden flex items-center justify-center transition-all duration-700 ${isDark ? 'bg-zinc-900 shadow-[0_0_30px_rgba(255,255,255,0.05)]' : 'bg-zinc-100'}`}>
+            <img 
+              src="https://res.cloudinary.com/dutufef4s/image/upload/v1770989288/theatre_njtpog.png" 
+              alt="Logo" 
+              className={`w-16 h-16 object-contain grayscale transition-all ${isDark ? 'invert' : ''}`}
+            />
+          </div>
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl font-bold tracking-tighter uppercase">Acervo Teatro</h1>
+            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em]">Boas-vindas, {userName}</p>
+          </div>
+          <div className="mt-8 flex gap-1.5">
+             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:-0.3s]"></div>
+             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:-0.15s]"></div>
+             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row ${mainClass}`}>
       {dataLoading && (
@@ -500,19 +547,6 @@ const App: React.FC = () => {
             ACERVO TEATRO
           </h1>
           <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Gestão de Inventário</p>
-          
-          <div className="mt-8 pt-6 border-t border-zinc-900/50 animate-in fade-in duration-700">
-             <div className="flex flex-col gap-1">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Bem-vindo,</span>
-                <div className="flex items-center gap-2 overflow-hidden">
-                   <span className="text-xs font-bold truncate">{profile?.display_name || session?.user?.email}</span>
-                   <Badge variant={isAdmin ? 'success' : 'default'}>{profile?.role === 'admin' ? 'ADMIN' : 'USUÁRIO'}</Badge>
-                </div>
-                {!canEdit && (
-                  <span className="text-[9px] text-zinc-600 font-medium uppercase mt-1 italic">Apenas Visualização</span>
-                )}
-             </div>
-          </div>
         </div>
         
         <nav className="flex-1 px-4 space-y-1">
