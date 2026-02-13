@@ -76,7 +76,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <img 
               src="https://res.cloudinary.com/dutufef4s/image/upload/v1770989288/theatre_njtpog.png" 
               alt="Logo Teatro" 
-              className="w-10 h-10 object-contain grayscale"
+              className="w-10 h-10 object-contain grayscale translate-y-[4px]"
             />
           </div>
           <h1 className="text-2xl font-bold tracking-tighter text-white uppercase">
