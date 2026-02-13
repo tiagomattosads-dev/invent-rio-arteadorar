@@ -115,7 +115,21 @@ const App: React.FC = () => {
 
   const bootstrapProfile = async (userId: string, email: string) => {
     try {
+      // 1. Verificar se há convite pendente para resgate
+      const pendingCode = localStorage.getItem('pending_invite_code');
+      if (pendingCode) {
+        try {
+          await dataServiceSupabase.redeemInvite(pendingCode);
+          localStorage.removeItem('pending_invite_code');
+        } catch (err) {
+          console.error("Erro ao resgatar convite pendente:", err);
+        }
+      }
+
+      // 2. Buscar perfil
       let userProfile = await dataServiceSupabase.getProfile(userId);
+      
+      // 3. Criar perfil básico se ainda não existir
       if (!userProfile) {
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,

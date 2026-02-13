@@ -25,39 +25,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       if (isRegistering) {
         if (!name || !email || !password || !confirmPassword || !inviteCode) {
           alert('Por favor, preencha todos os campos, incluindo o código de convite.');
+          setLoading(false);
           return;
         }
         if (password !== confirmPassword) {
           alert('As senhas não coincidem.');
+          setLoading(false);
           return;
         }
 
-        // Validação do convite
-        const invite = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase().trim());
-        if (!invite) {
+        // Validação do convite via RPC
+        const isValid = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase().trim());
+        if (!isValid) {
           alert('Código de convite inválido ou expirado.');
           setLoading(false);
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        // Salvar código para resgate após o login/confirmação
+        localStorage.setItem('pending_invite_code', inviteCode.toUpperCase().trim());
+
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { full_name: name } }
         });
-        if (error) throw error;
-
-        if (data.user) {
-          // Criar perfil com as permissões do convite
-          await dataServiceSupabase.createProfile({
-            user_id: data.user.id,
-            display_name: name,
-            role: invite.role,
-            can_edit_items: invite.can_edit_items
-          });
-          
-          // Incrementar usos do convite
-          await dataServiceSupabase.incrementInviteUses(invite.code);
+        if (error) {
+          localStorage.removeItem('pending_invite_code');
+          throw error;
         }
 
         alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
@@ -65,6 +60,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       } else {
         if (!email || !password) {
           alert('Preencha todos os campos.');
+          setLoading(false);
           return;
         }
         const { error } = await supabase.auth.signInWithPassword({ email, password });

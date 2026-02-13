@@ -38,20 +38,17 @@ export const dataServiceSupabase = {
     if (error) throw error;
     return data || [];
   },
-  async validateInvite(code: string): Promise<Invite | null> {
-    const { data, error } = await supabase
-      .from("invites")
-      .select("*")
-      .eq("code", code)
-      .maybeSingle();
-    
-    if (error || !data) return null;
-    
-    const now = new Date();
-    if (data.uses >= data.max_uses) return null;
-    if (data.expires_at && new Date(data.expires_at) < now) return null;
-    
-    return data;
+  async validateInvite(code: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('validate_invite', { p_code: code });
+    if (error) {
+      console.error("Erro ao validar convite:", error);
+      return false;
+    }
+    return !!data;
+  },
+  async redeemInvite(code: string): Promise<void> {
+    const { error } = await supabase.rpc('redeem_invite', { p_code: code });
+    if (error) throw error;
   },
   async createInvite(invite: Partial<Invite>) {
     const { data, error } = await supabase.from("invites").insert([invite]).select().single();
