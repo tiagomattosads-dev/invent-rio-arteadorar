@@ -108,7 +108,7 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        bootstrapProfile(session.user.id, session.user.email || '');
+        bootstrapProfile(session);
       } else {
         setAuthLoading(false);
       }
@@ -117,7 +117,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        bootstrapProfile(session.user.id, session.user.email || '');
+        bootstrapProfile(session);
       } else {
         setProfile(null);
         setAuthLoading(false);
@@ -159,7 +159,11 @@ const App: React.FC = () => {
     }
   }, [session, authLoading]);
 
-  const bootstrapProfile = async (userId: string, email: string) => {
+  const bootstrapProfile = async (currentSession: any) => {
+    const { user } = currentSession;
+    const userId = user.id;
+    const email = user.email || '';
+    
     try {
       // 1. Verificar se há convite pendente para resgate
       const pendingCode = localStorage.getItem('pending_invite_code');
@@ -172,18 +176,27 @@ const App: React.FC = () => {
         }
       }
 
-      // 2. Buscar perfil
+      // 2. Buscar perfil existente
       let userProfile = await dataServiceSupabase.getProfile(userId);
       
-      // 3. Criar perfil básico se ainda não existir
+      // 3. Prioridade de Nome: Metadata (Cadastro) > Prefixo Email
+      const metaName = user.user_metadata?.full_name;
+      const finalDisplayName = metaName || email.split('@')[0] || 'Usuário';
+
+      // 4. Criar ou Atualizar perfil (Overwrite de display_name)
       if (!userProfile) {
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,
-          display_name: email,
+          display_name: finalDisplayName,
           role: 'user',
           can_edit_items: false
         });
+      } else if (metaName && userProfile.display_name !== metaName) {
+        // Se o nome no Auth Metadata mudou (ex: no cadastro recente), atualiza o Profile
+        await dataServiceSupabase.updateProfile(userId, { display_name: metaName });
+        userProfile = { ...userProfile, display_name: metaName };
       }
+      
       setProfile(userProfile);
     } catch (err) {
       console.error("Erro ao carregar perfil:", err);
