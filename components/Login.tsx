@@ -142,6 +142,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               display_name: name.trim(),
               role: 'user',
               can_edit_items: false,
+              can_borrow: false,
+              can_return: false,
+              can_manage_invites: false,
+              can_manage_users: false,
               updated_at: new Date().toISOString()
            }, { onConflict: 'user_id' });
         }

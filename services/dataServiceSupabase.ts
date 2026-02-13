@@ -13,10 +13,19 @@ export const dataServiceSupabase = {
     if (error) throw error;
     return data;
   },
-  async createProfile(profile: Profile): Promise<Profile> {
+  async createProfile(profile: Partial<Profile>): Promise<Profile> {
     const { data, error } = await supabase
       .from("profiles")
-      .upsert([profile])
+      .upsert([{
+        user_id: profile.user_id,
+        display_name: profile.display_name,
+        role: profile.role || 'user',
+        can_edit_items: profile.can_edit_items || false,
+        can_borrow: profile.can_borrow || false,
+        can_return: profile.can_return || false,
+        can_manage_invites: profile.can_manage_invites || false,
+        can_manage_users: profile.can_manage_users || false
+      }])
       .select()
       .single();
     if (error) throw error;

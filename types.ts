@@ -44,6 +44,10 @@ export interface Profile {
   display_name: string;
   role: UserRole;
   can_edit_items: boolean;
+  can_borrow: boolean;
+  can_return: boolean;
+  can_manage_invites: boolean;
+  can_manage_users: boolean;
 }
 
 export interface Invite {

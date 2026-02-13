@@ -103,6 +103,14 @@ const App: React.FC = () => {
   // Edit/New Item Form State
   const [itemForm, setItemForm] = useState<Partial<Item>>({});
 
+  // helpers de permissão
+  const isAdmin = profile?.role === 'admin';
+  const canBorrow = isAdmin || profile?.can_borrow === true;
+  const canReturn = isAdmin || profile?.can_return === true;
+  const canEditItems = isAdmin || profile?.can_edit_items === true;
+  const canManageInvites = isAdmin || profile?.can_manage_invites === true;
+  const canManageUsers = isAdmin || profile?.can_manage_users === true;
+
   // --- INITIALIZATION ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -207,7 +215,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (session && profile) {
       loadAllData();
-      if (profile.role === 'admin') {
+      if (isAdmin || canManageUsers || canManageInvites) {
         loadAdminData();
       }
     }
@@ -287,6 +295,10 @@ const App: React.FC = () => {
   };
 
   const handleCreateLoan = async () => {
+    if (!canBorrow) {
+      showAlert("Você não tem permissão para emprestar itens.", "Acesso Restrito");
+      return;
+    }
     if (!selectedItem) return;
     if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
       showAlert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
@@ -337,6 +349,10 @@ const App: React.FC = () => {
   };
 
   const handleReturnItem = async () => {
+    if (!canReturn) {
+      showAlert("Você não tem permissão para registrar devoluções.", "Acesso Restrito");
+      return;
+    }
     if (!selectedLoan) return;
     setDataLoading(true);
     try {
@@ -362,8 +378,8 @@ const App: React.FC = () => {
   };
 
   const handleSaveItem = async () => {
-    if (!profile?.can_edit_items && profile?.role !== 'admin') {
-      showAlert("Você não tem permissão para editar itens.");
+    if (!canEditItems) {
+      showAlert("Você não tem permissão para editar itens.", "Acesso Restrito");
       return;
     }
     if (!itemForm.name || !itemForm.categoryId) {
@@ -396,7 +412,10 @@ const App: React.FC = () => {
   };
 
   const handleAddCategory = async (name: string) => {
-    if (!profile?.can_edit_items && profile?.role !== 'admin') return;
+    if (!canEditItems) {
+      showAlert("Você não tem permissão para gerenciar categorias.", "Acesso Restrito");
+      return;
+    }
     setDataLoading(true);
     try {
       await dataServiceSupabase.createCategory(name);
@@ -409,7 +428,10 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!profile?.can_edit_items && profile?.role !== 'admin') return;
+    if (!canEditItems) {
+      showAlert("Você não tem permissão para gerenciar categorias.", "Acesso Restrito");
+      return;
+    }
     showConfirm('Deseja realmente excluir esta categoria? Os itens vinculados a ela não serão excluídos, mas ficarão sem categoria.', 'Confirmar Exclusão', async () => {
       setDataLoading(true);
       try {
@@ -430,7 +452,7 @@ const App: React.FC = () => {
 
   // --- ADMIN HANDLERS ---
   const handleGenerateInvite = async (role: UserRole, canEdit: boolean) => {
-    if (profile?.role !== 'admin') return;
+    if (!canManageInvites) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setDataLoading(true);
     try {
@@ -451,7 +473,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteInvite = async (id: string) => {
-    if (profile?.role !== 'admin') return;
+    if (!canManageInvites) return;
     showConfirm('Excluir este convite permanentemente?', 'Confirmar Revogação', async () => {
       setDataLoading(true);
       try {
@@ -466,7 +488,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateUserProfile = async (userId: string, updates: Partial<Profile>) => {
-    if (profile?.role !== 'admin') return;
+    if (!canManageUsers) return;
     setDataLoading(true);
     try {
       await dataServiceSupabase.updateProfile(userId, updates);
@@ -477,9 +499,6 @@ const App: React.FC = () => {
       setDataLoading(false);
     }
   };
-
-  const canEdit = profile?.role === 'admin' || profile?.can_edit_items === true;
-  const isAdmin = profile?.role === 'admin';
 
   const isDark = theme === 'dark';
   const sidebarClass = isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-50 border-zinc-200';
@@ -502,7 +521,7 @@ const App: React.FC = () => {
     },
     { id: 'categories', label: 'Categorias', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'settings', label: 'Ajustes', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1 0 4 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 0-4 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z' },
-    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }] : [])
+    ...((isAdmin || canManageUsers || canManageInvites) ? [{ id: 'admin', label: 'Admin', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }] : [])
   ];
 
   const sortedLoans = useMemo(() => {
@@ -629,14 +648,14 @@ const App: React.FC = () => {
                 <h2 className="text-3xl font-bold tracking-tight">Itens do Acervo</h2>
                 <p className="text-zinc-500">Gerencie o acervo de figurinos e cenários.</p>
               </div>
-              {canEdit && (
+              {canEditItems && (
                 <Button onClick={() => { setItemForm({}); setIsItemModalOpen(true); }} variant="primary">
                   + Novo Item
                 </Button>
               )}
             </header>
 
-            {!canEdit && (
+            {!canEditItems && (
               <div className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-xs text-zinc-500 italic">
                 Você não tem permissão para editar itens. Entre em contato com um administrador para solicitar permissões de edição.
               </div>
@@ -697,8 +716,12 @@ const App: React.FC = () => {
                         variant={item.status === 'Disponível' ? 'primary' : 'outline'}
                         onClick={() => { 
                           if (item.status === 'Disponível') {
-                            setSelectedItem(item); 
-                            setIsLoanModalOpen(true); 
+                            if (!canBorrow) {
+                              showAlert("Você não tem permissão para emprestar itens.", "Acesso Restrito");
+                            } else {
+                              setSelectedItem(item); 
+                              setIsLoanModalOpen(true); 
+                            }
                           } else {
                             const loan = loans.find(l => l.itemId === item.id && l.status === 'Ativo');
                             if (loan) handleViewLoanDetails(loan);
@@ -707,7 +730,7 @@ const App: React.FC = () => {
                       >
                         {item.status === 'Disponível' ? 'Emprestar' : 'Ver Empréstimo'}
                       </Button>
-                      {canEdit && (
+                      {canEditItems && (
                         <Button 
                           variant="secondary" 
                           className="px-2"
@@ -798,7 +821,17 @@ const App: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           {loan.status === 'Ativo' ? (
-                            <Button variant="secondary" onClick={() => { setSelectedLoan(loan); setIsReturnModalOpen(true); }}>
+                            <Button 
+                              variant="secondary" 
+                              onClick={() => { 
+                                if (!canReturn) {
+                                  showAlert("Você não tem permissão para registrar devoluções.", "Acesso Restrito");
+                                } else {
+                                  setSelectedLoan(loan); 
+                                  setIsReturnModalOpen(true); 
+                                }
+                              }}
+                            >
                               Devolver
                             </Button>
                           ) : (
@@ -850,7 +883,18 @@ const App: React.FC = () => {
                         Ver Detalhes
                       </Button>
                       {loan.status === 'Ativo' ? (
-                        <Button variant="primary" fullWidth onClick={() => { setSelectedLoan(loan); setIsReturnModalOpen(true); }}>
+                        <Button 
+                          variant="primary" 
+                          fullWidth 
+                          onClick={() => { 
+                            if (!canReturn) {
+                              showAlert("Você não tem permissão para registrar devoluções.", "Acesso Restrito");
+                            } else {
+                              setSelectedLoan(loan); 
+                              setIsReturnModalOpen(true); 
+                            }
+                          }}
+                        >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                           Devolver
                         </Button>
@@ -876,7 +920,7 @@ const App: React.FC = () => {
             </header>
 
             <div className={`border rounded-xl p-8 space-y-6 ${isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-white border-zinc-200 shadow-sm'}`}>
-              {canEdit ? (
+              {canEditItems ? (
                 <form 
                   className="flex gap-2" 
                   onSubmit={(e) => {
@@ -902,7 +946,7 @@ const App: React.FC = () => {
                 {categories.map(cat => (
                   <div key={cat.id} className={`p-4 rounded-lg flex justify-between items-center group transition-colors ${isDark ? 'hover:bg-zinc-900 border border-transparent' : 'hover:bg-zinc-50 border border-zinc-100'}`}>
                     <span className={`font-medium ${isDark ? 'text-white' : 'text-zinc-900'}`}>{cat.name}</span>
-                    {canEdit && (
+                    {canEditItems && (
                       <Button 
                         variant="danger" 
                         className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1"
@@ -918,7 +962,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {activeView === 'admin' && isAdmin && (
+        {activeView === 'admin' && (isAdmin || canManageUsers || canManageInvites) && (
            <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
              <header>
                 <h2 className="text-3xl font-bold tracking-tight">Gestão Administrativa</h2>
@@ -927,70 +971,94 @@ const App: React.FC = () => {
 
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* INVITES SECTION */}
-                <Card className="p-6 space-y-6">
-                   <div className="flex items-center justify-between">
-                      <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Convites Ativos</h3>
-                      <div className="flex gap-2">
-                         <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ User</Button>
-                         <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', true)}>+ Editor</Button>
-                      </div>
-                   </div>
-                   <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                      {allInvites.map(inv => (
-                        <div key={inv.id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
-                           <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-white text-sm">{inv.code}</span>
-                                <Badge variant={inv.can_edit_items ? 'success' : 'default'}>{inv.role === 'admin' ? 'ADMIN' : (inv.can_edit_items ? 'EDITOR' : 'LEITOR')}</Badge>
-                              </div>
-                              <div className="text-[9px] text-zinc-600 mt-1">USOS: {inv.uses} / {inv.max_uses}</div>
-                           </div>
-                           <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                           </button>
+                {canManageInvites && (
+                  <Card className="p-6 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Convites Ativos</h3>
+                        <div className="flex gap-2">
+                          <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ User</Button>
+                          <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', true)}>+ Editor</Button>
                         </div>
-                      ))}
-                      {allInvites.length === 0 && <p className="text-xs text-zinc-700 italic">Nenhum convite gerado.</p>}
-                   </div>
-                </Card>
+                    </div>
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                        {allInvites.map(inv => (
+                          <div key={inv.id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-white text-sm">{inv.code}</span>
+                                  <Badge variant={inv.can_edit_items ? 'success' : 'default'}>{inv.role === 'admin' ? 'ADMIN' : (inv.can_edit_items ? 'EDITOR' : 'LEITOR')}</Badge>
+                                </div>
+                                <div className="text-[9px] text-zinc-600 mt-1">USOS: {inv.uses} / {inv.max_uses}</div>
+                            </div>
+                            <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                            </button>
+                          </div>
+                        ))}
+                        {allInvites.length === 0 && <p className="text-xs text-zinc-700 italic">Nenhum convite gerado.</p>}
+                    </div>
+                  </Card>
+                )}
 
                 {/* USERS SECTION */}
-                <Card className="p-6 space-y-6">
-                   <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Membros Registrados</h3>
-                   <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                      {allProfiles.map(p => (
-                        <div key={p.user_id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
-                           <div className="flex flex-col gap-0.5 max-w-[60%]">
-                              <span className="text-xs font-bold text-white truncate">{p.display_name}</span>
-                              <div className="flex gap-1 mt-1">
-                                 <Badge variant={p.role === 'admin' ? 'success' : 'default'}>{p.role.toUpperCase()}</Badge>
-                                 <Badge variant={p.can_edit_items ? 'success' : 'default'}>{p.can_edit_items ? 'Pode Editar' : 'Apenas Ver'}</Badge>
-                              </div>
-                           </div>
-                           <div className="flex gap-1">
-                              {p.user_id !== session.user.id && (
-                                <>
-                                  <button 
-                                    onClick={() => handleUpdateUserProfile(p.user_id, { role: p.role === 'admin' ? 'user' : 'admin' })}
-                                    className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold"
-                                    title="Alternar Cargo"
-                                  >
-                                    Cargo
-                                  </button>
-                                  <button 
-                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
-                                    className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold"
-                                    title="Alternar Permissão de Edição"
-                                  >
-                                    Edit
-                                  </button>
-                                </>
-                              )}
-                           </div>
-                        </div>
-                      ))}
-                   </div>
-                </Card>
+                {canManageUsers && (
+                  <Card className="p-6 space-y-6">
+                    <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Membros Registrados</h3>
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                        {allProfiles.map(p => (
+                          <div key={p.user_id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col gap-0.5 max-w-[60%]">
+                                  <span className="text-xs font-bold text-white truncate">{p.display_name}</span>
+                                  <div className="flex gap-1 mt-1">
+                                    <Badge variant={p.role === 'admin' ? 'success' : 'default'}>{p.role.toUpperCase()}</Badge>
+                                  </div>
+                                </div>
+                                <div className="flex gap-1">
+                                  {p.user_id !== session.user.id && (
+                                    <button 
+                                      onClick={() => handleUpdateUserProfile(p.user_id, { role: p.role === 'admin' ? 'user' : 'admin' })}
+                                      className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold transition-all"
+                                      title="Mudar para Admin/User"
+                                    >
+                                      Cargo
+                                    </button>
+                                  )}
+                                </div>
+                            </div>
+                            
+                            {/* Permissões Granulares */}
+                            <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2">
+                               <button 
+                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
+                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_edit_items ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                               >
+                                 Editar Itens: {p.can_edit_items ? 'SIM' : 'NÃO'}
+                               </button>
+                               <button 
+                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_borrow: !p.can_borrow })}
+                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_borrow ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                               >
+                                 Emprestar: {p.can_borrow ? 'SIM' : 'NÃO'}
+                               </button>
+                               <button 
+                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_return: !p.can_return })}
+                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_return ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                               >
+                                 Devolver: {p.can_return ? 'SIM' : 'NÃO'}
+                               </button>
+                               <button 
+                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_manage_invites: !p.can_manage_invites })}
+                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_manage_invites ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                               >
+                                 Convites: {p.can_manage_invites ? 'SIM' : 'NÃO'}
+                               </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </Card>
+                )}
              </div>
            </div>
         )}
@@ -1136,7 +1204,7 @@ const App: React.FC = () => {
                         {m}
                         {isSelected && (
                           <div className="absolute top-1 right-1">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                           </div>
                         )}
                       </button>
