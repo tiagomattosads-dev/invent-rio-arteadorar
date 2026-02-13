@@ -136,6 +136,7 @@ const App: React.FC = () => {
   // Control Splash Screen visibility
   useEffect(() => {
     const splashShown = sessionStorage.getItem('splash_shown');
+    // FIXED DURATION LOGIC: Show splash if session exists, auth is finished, and not yet shown
     if (session && !authLoading && !splashShown && !splashShownInSession) {
       setIsSplashVisible(true);
       setSplashShownInSession(true);
@@ -143,6 +144,7 @@ const App: React.FC = () => {
       
       const timer = setTimeout(() => {
         setIsSplashVisible(false);
+        setActiveView('inventory'); // Ensure user lands on Inventory view
       }, 4000);
 
       return () => clearTimeout(timer);
@@ -499,7 +501,8 @@ const App: React.FC = () => {
 
   // Splash Screen Overlay
   if (isSplashVisible) {
-    const displayName = profile?.display_name || session?.user?.email?.split('@')[0] || 'Usuário';
+    // Priority for name: profile > auth metadata > email prefix
+    const displayName = profile?.display_name || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Usuário';
     return (
       <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500 ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
         <div className="flex flex-col items-center gap-6 max-w-sm px-6 text-center">
