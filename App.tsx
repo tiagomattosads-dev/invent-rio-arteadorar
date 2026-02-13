@@ -32,6 +32,7 @@ import CameraCapture from './components/CameraCapture';
 import SignatureCanvas from './components/SignatureCanvas';
 import Login from './components/Login';
 import ConfirmDialog from './components/ConfirmDialog';
+import AlertDialog from './components/AlertDialog';
 
 const App: React.FC = () => {
   // --- AUTH & PROFILE STATE ---
@@ -63,6 +64,19 @@ const App: React.FC = () => {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+
+  // Feedback Modals State
+  const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string; onOk?: () => void }>({
+    isOpen: false,
+    title: '',
+    message: ''
+  });
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
 
   // Loan Form State
   const [loanForm, setLoanForm] = useState({
@@ -206,6 +220,14 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
   };
 
+  const showAlert = (message: string, title: string = 'Aviso', onOk?: () => void) => {
+    setAlertConfig({ isOpen: true, title, message, onOk });
+  };
+
+  const showConfirm = (message: string, title: string, onConfirm: () => void) => {
+    setConfirmConfig({ isOpen: true, title, message, onConfirm });
+  };
+
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
@@ -223,7 +245,7 @@ const App: React.FC = () => {
   const handleCreateLoan = async () => {
     if (!selectedItem) return;
     if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
-      alert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
+      showAlert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
       return;
     }
 
@@ -264,7 +286,7 @@ const App: React.FC = () => {
       });
       setSelectedItem(null);
     } catch (err: any) {
-      alert("Erro ao criar empréstimo: " + err.message);
+      showAlert("Erro ao criar empréstimo: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -289,7 +311,7 @@ const App: React.FC = () => {
       setIsReturnModalOpen(false);
       setSelectedLoan(null);
     } catch (err: any) {
-      alert("Erro ao devolver item: " + err.message);
+      showAlert("Erro ao devolver item: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -297,10 +319,13 @@ const App: React.FC = () => {
 
   const handleSaveItem = async () => {
     if (!profile?.can_edit_items && profile?.role !== 'admin') {
-      alert("Você não tem permissão para editar itens.");
+      showAlert("Você não tem permissão para editar itens.");
       return;
     }
-    if (!itemForm.name || !itemForm.categoryId) return;
+    if (!itemForm.name || !itemForm.categoryId) {
+      showAlert('Preencha pelo menos o nome e a categoria do item.');
+      return;
+    }
     setDataLoading(true);
     try {
       let imageUrl = itemForm.imageUrl;
@@ -320,7 +345,7 @@ const App: React.FC = () => {
       setIsItemModalOpen(false);
       setItemForm({});
     } catch (err: any) {
-      alert("Erro ao salvar item: " + err.message);
+      showAlert("Erro ao salvar item: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -333,7 +358,7 @@ const App: React.FC = () => {
       await dataServiceSupabase.createCategory(name);
       await loadAllData();
     } catch (err: any) {
-      alert("Erro ao criar categoria: " + err.message);
+      showAlert("Erro ao criar categoria: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -341,16 +366,17 @@ const App: React.FC = () => {
 
   const handleDeleteCategory = async (id: string) => {
     if (!profile?.can_edit_items && profile?.role !== 'admin') return;
-    if (!confirm('Deseja realmente excluir esta categoria?')) return;
-    setDataLoading(true);
-    try {
-      await dataServiceSupabase.deleteCategory(id);
-      await loadAllData();
-    } catch (err: any) {
-      alert("Erro ao excluir categoria: " + err.message);
-    } finally {
-      setDataLoading(false);
-    }
+    showConfirm('Deseja realmente excluir esta categoria? Os itens vinculados a ela não serão excluídos, mas ficarão sem categoria.', 'Confirmar Exclusão', async () => {
+      setDataLoading(true);
+      try {
+        await dataServiceSupabase.deleteCategory(id);
+        await loadAllData();
+      } catch (err: any) {
+        showAlert("Erro ao excluir categoria: " + err.message, 'Erro');
+      } finally {
+        setDataLoading(false);
+      }
+    });
   };
 
   const handleViewLoanDetails = (loan: Loan) => {
@@ -374,7 +400,7 @@ const App: React.FC = () => {
       });
       await loadAdminData();
     } catch (err: any) {
-      alert("Erro ao gerar convite: " + err.message);
+      showAlert("Erro ao gerar convite: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -382,16 +408,17 @@ const App: React.FC = () => {
 
   const handleDeleteInvite = async (id: string) => {
     if (profile?.role !== 'admin') return;
-    if (!confirm('Excluir este convite?')) return;
-    setDataLoading(true);
-    try {
-      await dataServiceSupabase.deleteInvite(id);
-      await loadAdminData();
-    } catch (err: any) {
-      alert("Erro ao excluir convite: " + err.message);
-    } finally {
-      setDataLoading(false);
-    }
+    showConfirm('Excluir este convite permanentemente?', 'Confirmar Revogação', async () => {
+      setDataLoading(true);
+      try {
+        await dataServiceSupabase.deleteInvite(id);
+        await loadAdminData();
+      } catch (err: any) {
+        showAlert("Erro ao excluir convite: " + err.message, 'Erro');
+      } finally {
+        setDataLoading(false);
+      }
+    });
   };
 
   const handleUpdateUserProfile = async (userId: string, updates: Partial<Profile>) => {
@@ -401,7 +428,7 @@ const App: React.FC = () => {
       await dataServiceSupabase.updateProfile(userId, updates);
       await loadAdminData();
     } catch (err: any) {
-      alert("Erro ao atualizar perfil: " + err.message);
+      showAlert("Erro ao atualizar perfil: " + err.message, 'Erro');
     } finally {
       setDataLoading(false);
     }
@@ -1250,16 +1277,18 @@ const App: React.FC = () => {
           <div className="flex justify-end gap-3 pt-6 border-t border-zinc-900">
              {itemForm.id && (
               <Button variant="danger" className="mr-auto" onClick={async () => {
-                if (confirm('Deletar este item permanentemente do acervo?')) {
+                showConfirm('Deletar este item permanentemente do acervo?', 'Confirmar Exclusão', async () => {
                   setDataLoading(true);
                   try {
                     await dataServiceSupabase.deleteItem(itemForm.id!);
                     await loadAllData();
                     setIsItemModalOpen(false);
+                  } catch (err: any) {
+                    showAlert("Erro ao excluir item: " + err.message, 'Erro');
                   } finally {
                     setDataLoading(false);
                   }
-                }
+                });
               }} disabled={dataLoading}>Excluir Registro</Button>
             )}
             <Button variant="secondary" onClick={() => setIsItemModalOpen(false)} disabled={dataLoading}>Cancelar</Button>
@@ -1394,6 +1423,24 @@ const App: React.FC = () => {
         message="Deseja realmente sair do sistema?"
         confirmLabel="Sair"
         cancelLabel="Cancelar"
+      />
+
+      <ConfirmDialog 
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig({ ...confirmConfig, isOpen: false })}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+      />
+
+      <AlertDialog 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => {
+          setAlertConfig({ ...alertConfig, isOpen: false });
+          if (alertConfig.onOk) alertConfig.onOk();
+        }}
       />
     </div>
   );

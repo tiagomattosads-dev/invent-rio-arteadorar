@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Button, Input, Card } from './UI';
 import { supabase } from '../services/supabaseClient';
 import { dataServiceSupabase } from '../services/dataServiceSupabase';
+import AlertDialog from './AlertDialog';
 
 interface LoginProps {
   onLogin: () => void;
@@ -17,6 +18,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Alert State
+  const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string; onOk?: () => void }>({
+    isOpen: false,
+    title: '',
+    message: ''
+  });
+
+  const showAlert = (message: string, title: string = 'Aviso', onOk?: () => void) => {
+    setAlertConfig({ isOpen: true, title, message, onOk });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -24,12 +36,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     try {
       if (isRegistering) {
         if (!name || !email || !password || !confirmPassword || !inviteCode) {
-          alert('Por favor, preencha todos os campos, incluindo o código de convite.');
+          showAlert('Por favor, preencha todos os campos, incluindo o código de convite.');
           setLoading(false);
           return;
         }
         if (password !== confirmPassword) {
-          alert('As senhas não coincidem.');
+          showAlert('As senhas não coincidem.');
           setLoading(false);
           return;
         }
@@ -37,7 +49,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         // Validação do convite via RPC
         const isValid = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase().trim());
         if (!isValid) {
-          alert('Código de convite inválido ou expirado.');
+          showAlert('Código de convite inválido ou expirado.');
           setLoading(false);
           return;
         }
@@ -55,11 +67,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           throw error;
         }
 
-        alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
-        setIsRegistering(false);
+        showAlert(
+          'Cadastro realizado! Verifique seu email para confirmar ou tente entrar.', 
+          'Sucesso',
+          () => {
+            setIsRegistering(false);
+          }
+        );
       } else {
         if (!email || !password) {
-          alert('Preencha todos os campos.');
+          showAlert('Preencha todos os campos.');
           setLoading(false);
           return;
         }
@@ -69,7 +86,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Erro ao processar. Tente novamente.');
+      showAlert(err.message || 'Erro ao processar. Tente novamente.', 'Erro');
     } finally {
       setLoading(false);
     }
@@ -77,15 +94,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const handleResetPassword = async () => {
     if (!email) {
-      alert('Digite seu email primeiro.');
+      showAlert('Digite seu email primeiro.');
       return;
     }
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) throw error;
-      alert('Se esse email existir, enviamos um link para redefinir sua senha.');
+      showAlert('Se esse email existir, enviamos um link para redefinir sua senha.');
     } catch (err: any) {
-      alert(err.message);
+      showAlert(err.message, 'Erro');
     }
   };
 
@@ -200,6 +217,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           Desenvolvido para o Ministério de Artes
         </p>
       </div>
+
+      <AlertDialog 
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => {
+          setAlertConfig({ ...alertConfig, isOpen: false });
+          if (alertConfig.onOk) alertConfig.onOk();
+        }}
+      />
     </div>
   );
 };
