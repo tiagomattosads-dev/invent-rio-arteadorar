@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Input, Card } from './UI';
 import { supabase } from '../services/supabaseClient';
 import { dataServiceSupabase } from '../services/dataServiceSupabase';
@@ -17,6 +17,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Alert State
   const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string; onOk?: () => void }>({
@@ -27,6 +29,47 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const showAlert = (message: string, title: string = 'Aviso', onOk?: () => void) => {
     setAlertConfig({ isOpen: true, title, message, onOk });
+  };
+
+  // Cooldown timer effect
+  useEffect(() => {
+    let timer: number;
+    if (resendCooldown > 0) {
+      timer = window.setInterval(() => {
+        setResendCooldown((current) => current - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleResendConfirmation = async () => {
+    if (!email) {
+      showAlert('Digite o e-mail no campo acima primeiro.');
+      return;
+    }
+    
+    setResendLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim(),
+      });
+
+      if (error) {
+        if (error.message.includes('rate limit')) {
+          showAlert('Limite temporário de envios. Aguarde alguns minutos e tente novamente.', 'Limite Excedido');
+        } else {
+          throw error;
+        }
+      } else {
+        showAlert('Link de confirmação reenviado! Verifique sua caixa de entrada.', 'Sucesso');
+        setResendCooldown(90);
+      }
+    } catch (err: any) {
+      showAlert(err.message || 'Erro ao reenviar confirmação.', 'Erro');
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,12 +101,29 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         localStorage.setItem('pending_invite_code', inviteCode.toUpperCase().trim());
 
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.trim(),
           password,
           options: { data: { full_name: name } }
         });
+
         if (error) {
           localStorage.removeItem('pending_invite_code');
+          
+          if (error.message.includes('rate limit')) {
+            showAlert('Limite temporário de envios. Aguarde alguns minutos e tente novamente.', 'Limite Excedido');
+            setLoading(false);
+            return;
+          }
+
+          if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
+            showAlert(
+              "Este email já foi cadastrado. Verifique sua caixa de entrada para confirmar o email. Se não recebeu, use 'Reenviar confirmação'.",
+              "Email já cadastrado"
+            );
+            setLoading(false);
+            return;
+          }
+
           throw error;
         }
 
@@ -72,6 +132,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           'Sucesso',
           () => {
             setIsRegistering(false);
+            setResendCooldown(90); // Ativa cooldown após cadastro inicial também
           }
         );
       } else {
@@ -80,7 +141,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           setLoading(false);
           return;
         }
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
         onLogin();
       }
@@ -98,7 +159,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return;
     }
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (error) throw error;
       showAlert('Se esse email existir, enviamos um link para redefinir sua senha.');
     } catch (err: any) {
@@ -194,6 +255,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
 
           <div className="mt-6 pt-6 border-t border-zinc-900 text-center flex flex-col gap-4">
+            {isRegistering && (
+              <button 
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendLoading || resendCooldown > 0}
+                className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Reenviar em ${resendCooldown}s` : 'Reenviar confirmação de email'}
+              </button>
+            )}
+            
             <button 
               type="button"
               onClick={() => setIsRegistering(!isRegistering)}
