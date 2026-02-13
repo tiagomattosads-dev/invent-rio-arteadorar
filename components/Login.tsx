@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Button, Input, Card } from './UI';
 import { supabase } from '../services/supabaseClient';
+import { dataServiceSupabase } from '../services/dataServiceSupabase';
 
 interface LoginProps {
   onLogin: () => void;
@@ -13,6 +14,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,22 +23,47 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     
     try {
       if (isRegistering) {
-        if (!name || !email || !password || !confirmPassword) {
-          alert('Por favor, preencha todos os campos.');
+        if (!name || !email || !password || !confirmPassword || !inviteCode) {
+          alert('Por favor, preencha todos os campos, incluindo o código de convite.');
           return;
         }
         if (password !== confirmPassword) {
           alert('As senhas não coincidem.');
           return;
         }
-        const { error } = await supabase.auth.signUp({
+
+        // 1. Validar Convite
+        const invite = await dataServiceSupabase.validateInvite(inviteCode);
+        if (!invite) {
+          alert('Código de convite inválido, expirado ou já utilizado ao máximo.');
+          setLoading(false);
+          return;
+        }
+
+        // 2. Criar Usuário Auth
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { full_name: name } }
         });
-        if (error) throw error;
-        alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
-        setIsRegistering(false);
+        
+        if (signUpError) throw signUpError;
+        
+        if (signUpData.user) {
+          // 3. Criar Perfil com base no convite
+          await dataServiceSupabase.createProfile({
+            user_id: signUpData.user.id,
+            display_name: name,
+            role: invite.role,
+            can_edit_items: invite.can_edit_items
+          });
+
+          // 4. Incrementar usos do convite
+          await dataServiceSupabase.incrementInviteUses(inviteCode);
+          
+          alert('Cadastro realizado com sucesso! Você já pode entrar.');
+          setIsRegistering(false);
+        }
       } else {
         if (!email || !password) {
           alert('Preencha todos os campos.');
@@ -83,23 +110,35 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             {isRegistering ? 'Criar Conta' : 'Acervo Teatro'}
           </h1>
           <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-2">
-            {isRegistering ? 'Cadastre-se para gerenciar o acervo' : 'Acesso Restrito ao Ministério'}
+            {isRegistering ? 'É necessário um código de convite para se cadastrar' : 'Acesso Restrito ao Ministério'}
           </p>
         </div>
 
         <Card className="p-8 border-zinc-900 bg-zinc-950/50 backdrop-blur-xl">
           <form onSubmit={handleSubmit} className="space-y-5">
             {isRegistering && (
-              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Nome Completo</label>
-                <Input 
-                  type="text" 
-                  placeholder="Seu nome" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
+              <>
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Código de Convite</label>
+                  <Input 
+                    type="text" 
+                    placeholder="Código de 6 dígitos" 
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                    required
+                  />
+                </div>
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Nome Completo</label>
+                  <Input 
+                    type="text" 
+                    placeholder="Seu nome" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
             )}
             <div>
               <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">E-mail</label>
@@ -139,7 +178,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={loading}
               className="py-3 font-bold uppercase tracking-widest"
             >
-              {loading ? 'Processando...' : (isRegistering ? 'Criar Conta' : 'Entrar no Sistema')}
+              {loading ? 'Processando...' : (isRegistering ? 'Concluir Cadastro' : 'Entrar no Sistema')}
             </Button>
           </form>
 

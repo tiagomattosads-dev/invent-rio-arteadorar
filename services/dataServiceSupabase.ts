@@ -1,8 +1,74 @@
 
 import { supabase } from "./supabaseClient";
-import { Category, Item, Loan } from "../types";
+import { Category, Item, Loan, Profile, Invite } from "../types";
 
 export const dataServiceSupabase = {
+  // Profiles
+  async getProfile(userId: string): Promise<Profile | null> {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+  async createProfile(profile: Profile): Promise<Profile> {
+    const { data, error } = await supabase
+      .from("profiles")
+      .upsert([profile])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  async listProfiles(): Promise<Profile[]> {
+    const { data, error } = await supabase.from("profiles").select("*").order("display_name");
+    if (error) throw error;
+    return data || [];
+  },
+  async updateProfile(userId: string, updates: Partial<Profile>) {
+    const { error } = await supabase.from("profiles").update(updates).eq("user_id", userId);
+    if (error) throw error;
+  },
+
+  // Invites
+  async listInvites(): Promise<Invite[]> {
+    const { data, error } = await supabase.from("invites").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+  async validateInvite(code: string): Promise<Invite | null> {
+    const { data, error } = await supabase
+      .from("invites")
+      .select("*")
+      .eq("code", code)
+      .single();
+    if (error) return null;
+    
+    const now = new Date();
+    if (data.uses >= data.max_uses) return null;
+    if (data.expires_at && new Date(data.expires_at) < now) return null;
+    
+    return data;
+  },
+  async createInvite(invite: Partial<Invite>) {
+    const { data, error } = await supabase.from("invites").insert([invite]).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async deleteInvite(id: string) {
+    const { error } = await supabase.from("invites").delete().eq("id", id);
+    if (error) throw error;
+  },
+  async incrementInviteUses(code: string) {
+    const { data: invite } = await supabase.from("invites").select("uses").eq("code", code).single();
+    if (invite) {
+      const { error } = await supabase.from("invites").update({ uses: invite.uses + 1 }).eq("code", code);
+      if (error) throw error;
+    }
+  },
+
   // Categories
   async listCategories(): Promise<Category[]> {
     const { data, error } = await supabase.from("categories").select("*").order("name");

@@ -2,6 +2,7 @@
 export type ItemStatus = 'Disponível' | 'Emprestado';
 export type ItemCondition = 'Novo' | 'Boas Condições' | 'Danificado';
 export type LoanStatus = 'Ativo' | 'Concluído';
+export type UserRole = 'admin' | 'user';
 
 export interface Category {
   id: string;
@@ -38,4 +39,22 @@ export interface Loan {
   status: LoanStatus;
 }
 
-export type ViewType = 'inventory' | 'loans' | 'categories' | 'settings';
+export interface Profile {
+  user_id: string;
+  display_name: string;
+  role: UserRole;
+  can_edit_items: boolean;
+}
+
+export interface Invite {
+  id?: string;
+  code: string;
+  created_by: string;
+  role: UserRole;
+  can_edit_items: boolean;
+  max_uses: number;
+  uses: number;
+  expires_at: string | null;
+}
+
+export type ViewType = 'inventory' | 'loans' | 'categories' | 'settings' | 'admin';
