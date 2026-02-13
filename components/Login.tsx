@@ -78,7 +78,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     
     try {
       if (isRegistering) {
-        if (!name || !email || !password || !confirmPassword || !inviteCode) {
+        // Validação obrigatória de Nome
+        if (!name.trim()) {
+           showAlert('O campo "Nome Completo" é obrigatório para o cadastro.', 'Campo Obrigatório');
+           setLoading(false);
+           return;
+        }
+        if (!email || !password || !confirmPassword || !inviteCode) {
           showAlert('Por favor, preencha todos os campos, incluindo o código de convite.');
           setLoading(false);
           return;
@@ -100,10 +106,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         // Salvar código para resgate após o login/confirmação
         localStorage.setItem('pending_invite_code', inviteCode.toUpperCase().trim());
 
-        const { error } = await supabase.auth.signUp({
+        // SignUp com full_name no metadata
+        const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: name } }
+          options: { data: { full_name: name.trim() } }
         });
 
         if (error) {
@@ -125,6 +132,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           }
 
           throw error;
+        }
+
+        // Persistência DEFINITIVA no public.profiles
+        const registeredUser = data.user || (await supabase.auth.getUser()).data.user;
+        if (registeredUser) {
+           await supabase.from('profiles').upsert({
+              user_id: registeredUser.id,
+              display_name: name.trim(),
+              role: 'user',
+              can_edit_items: false,
+              updated_at: new Date().toISOString()
+           }, { onConflict: 'user_id' });
         }
 
         showAlert(

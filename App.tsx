@@ -162,7 +162,6 @@ const App: React.FC = () => {
   const bootstrapProfile = async (currentSession: any) => {
     const { user } = currentSession;
     const userId = user.id;
-    const email = user.email || '';
     
     try {
       // 1. Verificar se há convite pendente para resgate
@@ -179,9 +178,9 @@ const App: React.FC = () => {
       // 2. Buscar perfil existente
       let userProfile = await dataServiceSupabase.getProfile(userId);
       
-      // 3. Prioridade de Nome: Metadata (Cadastro) > Prefixo Email
+      // 3. Prioridade de Nome: Metadata (Cadastro) > Fallback Genérico (NUNCA email)
       const metaName = user.user_metadata?.full_name;
-      const finalDisplayName = metaName || email.split('@')[0] || 'Usuário';
+      const finalDisplayName = metaName || 'Usuário';
 
       // 4. Criar ou Atualizar perfil (Overwrite de display_name)
       if (!userProfile) {
@@ -520,10 +519,10 @@ const App: React.FC = () => {
     return <Login onLogin={() => {}} />;
   }
 
-  // PARTE B: Priority for name display on Splash
+  // PARTE B: Priority for name display on Splash (REMOVIDO EMAIL)
   if (isSplashVisible) {
-    // Priority: profile.display_name > metadata.full_name > email prefix
-    const displayName = profile?.display_name || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Usuário';
+    // Priority: profile.display_name > metadata.full_name > Fallback
+    const displayName = profile?.display_name || session?.user?.user_metadata?.full_name || 'Usuário';
     return (
       <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500 ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
         <div className="flex flex-col items-center gap-6 max-w-sm px-6 text-center">
