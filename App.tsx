@@ -103,7 +103,7 @@ const App: React.FC = () => {
   // Edit/New Item Form State
   const [itemForm, setItemForm] = useState<Partial<Item>>({});
 
-  // helpers de permissão
+  // helpers de permissão (Admin sempre tem tudo liberado)
   const isAdmin = profile?.role === 'admin';
   const canBorrow = isAdmin || profile?.can_borrow === true;
   const canReturn = isAdmin || profile?.can_return === true;
@@ -489,6 +489,13 @@ const App: React.FC = () => {
 
   const handleUpdateUserProfile = async (userId: string, updates: Partial<Profile>) => {
     if (!canManageUsers) return;
+    
+    // Bloqueio de auto-edição para administradores
+    if (userId === session.user.id && profile?.role === 'admin') {
+      showAlert("Por segurança, você não pode alterar as permissões da sua própria conta admin.", "Ação bloqueada");
+      return;
+    }
+
     setDataLoading(true);
     try {
       await dataServiceSupabase.updateProfile(userId, updates);
@@ -976,8 +983,7 @@ const App: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Convites Ativos</h3>
                         <div className="flex gap-2">
-                          <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ User</Button>
-                          <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', true)}>+ Editor</Button>
+                          <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ Membro</Button>
                         </div>
                     </div>
                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
@@ -1005,57 +1011,66 @@ const App: React.FC = () => {
                   <Card className="p-6 space-y-6">
                     <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Membros Registrados</h3>
                     <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                        {allProfiles.map(p => (
-                          <div key={p.user_id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col gap-0.5 max-w-[60%]">
-                                  <span className="text-xs font-bold text-white truncate">{p.display_name}</span>
-                                  <div className="flex gap-1 mt-1">
-                                    <Badge variant={p.role === 'admin' ? 'success' : 'default'}>{p.role.toUpperCase()}</Badge>
+                        {allProfiles.map(p => {
+                          const isSelfAdmin = p.user_id === session.user.id && p.role === 'admin';
+                          return (
+                            <div key={p.user_id} className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg space-y-4">
+                              <div className="flex items-center justify-between">
+                                  <div className="flex flex-col gap-0.5 max-w-[60%]">
+                                    <span className="text-xs font-bold text-white truncate">{p.display_name}</span>
+                                    <div className="flex gap-1 mt-1">
+                                      <Badge variant={p.role === 'admin' ? 'success' : 'default'}>{p.role.toUpperCase()}</Badge>
+                                    </div>
                                   </div>
+                                  <div className="flex gap-1">
+                                    {!isSelfAdmin && (
+                                      <button 
+                                        onClick={() => handleUpdateUserProfile(p.user_id, { role: p.role === 'admin' ? 'user' : 'admin' })}
+                                        className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold transition-all"
+                                        title="Mudar para Admin/User"
+                                      >
+                                        Cargo
+                                      </button>
+                                    )}
+                                  </div>
+                              </div>
+                              
+                              {/* Permissões Granulares */}
+                              {isSelfAdmin ? (
+                                <div className="pt-2 border-t border-zinc-800">
+                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider italic">Permissões do administrador são fixas por segurança.</p>
                                 </div>
-                                <div className="flex gap-1">
-                                  {p.user_id !== session.user.id && (
-                                    <button 
-                                      onClick={() => handleUpdateUserProfile(p.user_id, { role: p.role === 'admin' ? 'user' : 'admin' })}
-                                      className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold transition-all"
-                                      title="Mudar para Admin/User"
-                                    >
-                                      Cargo
-                                    </button>
-                                  )}
+                              ) : (
+                                <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2">
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
+                                    className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_edit_items ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                                  >
+                                    Editar Itens: {p.can_edit_items ? 'SIM' : 'NÃO'}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_borrow: !p.can_borrow })}
+                                    className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_borrow ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                                  >
+                                    Emprestar: {p.can_borrow ? 'SIM' : 'NÃO'}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_return: !p.can_return })}
+                                    className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_return ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                                  >
+                                    Devolver: {p.can_return ? 'SIM' : 'NÃO'}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_manage_invites: !p.can_manage_invites })}
+                                    className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_manage_invites ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
+                                  >
+                                    Convites: {p.can_manage_invites ? 'SIM' : 'NÃO'}
+                                  </button>
                                 </div>
+                              )}
                             </div>
-                            
-                            {/* Permissões Granulares */}
-                            <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2">
-                               <button 
-                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
-                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_edit_items ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
-                               >
-                                 Editar Itens: {p.can_edit_items ? 'SIM' : 'NÃO'}
-                               </button>
-                               <button 
-                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_borrow: !p.can_borrow })}
-                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_borrow ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
-                               >
-                                 Emprestar: {p.can_borrow ? 'SIM' : 'NÃO'}
-                               </button>
-                               <button 
-                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_return: !p.can_return })}
-                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_return ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
-                               >
-                                 Devolver: {p.can_return ? 'SIM' : 'NÃO'}
-                               </button>
-                               <button 
-                                 onClick={() => handleUpdateUserProfile(p.user_id, { can_manage_invites: !p.can_manage_invites })}
-                                 className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_manage_invites ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
-                               >
-                                 Convites: {p.can_manage_invites ? 'SIM' : 'NÃO'}
-                               </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   </Card>
                 )}
@@ -1204,7 +1219,7 @@ const App: React.FC = () => {
                         {m}
                         {isSelected && (
                           <div className="absolute top-1 right-1">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                           </div>
                         )}
                       </button>
