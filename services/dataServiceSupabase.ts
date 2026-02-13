@@ -9,8 +9,8 @@ export const dataServiceSupabase = {
       .from("profiles")
       .select("*")
       .eq("user_id", userId)
-      .single();
-    if (error && error.code !== 'PGRST116') throw error;
+      .maybeSingle();
+    if (error) throw error;
     return data;
   },
   async createProfile(profile: Profile): Promise<Profile> {
@@ -43,8 +43,9 @@ export const dataServiceSupabase = {
       .from("invites")
       .select("*")
       .eq("code", code)
-      .single();
-    if (error) return null;
+      .maybeSingle();
+    
+    if (error || !data) return null;
     
     const now = new Date();
     if (data.uses >= data.max_uses) return null;
