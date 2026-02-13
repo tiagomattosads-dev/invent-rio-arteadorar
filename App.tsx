@@ -40,7 +40,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(false);
-  const [splashDone, setSplashDone] = useState(false);
+  const [splashShownInSession, setSplashShownInSession] = useState(false);
 
   // --- APP STATE ---
   const [activeView, setActiveView] = useState<ViewType>('inventory');
@@ -121,7 +121,9 @@ const App: React.FC = () => {
       } else {
         setProfile(null);
         setAuthLoading(false);
-        setSplashDone(false); // Reset splash on logout
+        // Reset splash state on logout to allow it to show on next login
+        sessionStorage.removeItem('splash_shown');
+        setSplashShownInSession(false);
       }
     });
 
@@ -131,28 +133,25 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Splash Logic: Show after authLoading finishes and a session exists, for max 4s or until profile loads
+  // Control Splash Screen visibility
   useEffect(() => {
-    if (!authLoading && session && !splashDone) {
+    const splashShown = sessionStorage.getItem('splash_shown');
+    if (session && !authLoading && !splashShown && !splashShownInSession) {
       setIsSplashVisible(true);
+      setSplashShownInSession(true);
+      sessionStorage.setItem('splash_shown', 'true');
+      
       const timer = setTimeout(() => {
         setIsSplashVisible(false);
-        setSplashDone(true);
       }, 4000);
+
       return () => clearTimeout(timer);
     }
-  }, [authLoading, session, splashDone]);
-
-  // Early exit splash if profile is loaded
-  useEffect(() => {
-    if (profile && isSplashVisible) {
-      setIsSplashVisible(false);
-      setSplashDone(true);
-    }
-  }, [profile, isSplashVisible]);
+  }, [session, authLoading, splashShownInSession]);
 
   const bootstrapProfile = async (userId: string, email: string) => {
     try {
+      // 1. Verificar se há convite pendente para resgate
       const pendingCode = localStorage.getItem('pending_invite_code');
       if (pendingCode) {
         try {
@@ -163,8 +162,10 @@ const App: React.FC = () => {
         }
       }
 
+      // 2. Buscar perfil
       let userProfile = await dataServiceSupabase.getProfile(userId);
       
+      // 3. Criar perfil básico se ainda não existir
       if (!userProfile) {
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,
@@ -498,25 +499,28 @@ const App: React.FC = () => {
 
   // Splash Screen Overlay
   if (isSplashVisible) {
-    const userName = profile?.display_name || session?.user?.email?.split('@')[0] || 'Usuário';
+    const displayName = profile?.display_name || session?.user?.email?.split('@')[0] || 'Usuário';
     return (
       <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500 ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
-        <div className="flex flex-col items-center gap-6">
-          <div className={`w-24 h-24 p-4 rounded-3xl overflow-hidden flex items-center justify-center transition-all duration-700 ${isDark ? 'bg-zinc-900 shadow-[0_0_30px_rgba(255,255,255,0.05)]' : 'bg-zinc-100'}`}>
+        <div className="flex flex-col items-center gap-6 max-w-sm px-6 text-center">
+          <div className={`w-24 h-24 p-5 rounded-3xl overflow-hidden flex items-center justify-center shadow-lg transition-all duration-500 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-zinc-50 border border-zinc-200'}`}>
             <img 
               src="https://res.cloudinary.com/dutufef4s/image/upload/v1770989288/theatre_njtpog.png" 
               alt="Logo" 
-              className={`w-16 h-16 object-contain grayscale transition-all ${isDark ? 'invert' : ''}`}
+              className={`w-16 h-16 object-contain grayscale ${isDark ? 'invert' : ''}`}
             />
           </div>
-          <div className="text-center space-y-2">
+          <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tighter uppercase">Acervo Teatro</h1>
-            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.3em]">Boas-vindas, {userName}</p>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-[0.3em]">Boas-vindas, {displayName}</p>
           </div>
-          <div className="mt-8 flex gap-1.5">
-             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:-0.3s]"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce [animation-delay:-0.15s]"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-zinc-700 animate-bounce"></div>
+          <div className="pt-4 flex flex-col items-center gap-4">
+            <div className="flex gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 animate-bounce"></div>
+            </div>
+            <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest animate-pulse">Carregando Acervo...</span>
           </div>
         </div>
       </div>
