@@ -487,6 +487,30 @@ const App: React.FC = () => {
     });
   };
 
+  const handleCopyInvite = async (code: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        // Fallback for non-secure contexts or browsers without clipboard API
+        const textArea = document.createElement("textarea");
+        textArea.value = code;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+      showAlert(`Código copiado: ${code}`, "Sucesso");
+    } catch (err) {
+      console.error("Erro ao copiar:", err);
+      showAlert("Não foi possível copiar o código automaticamente.");
+    }
+  };
+
   const handleUpdateUserProfile = async (userId: string, updates: Partial<Profile>) => {
     if (!canManageUsers) return;
     
@@ -996,9 +1020,17 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="text-[9px] text-zinc-600 mt-1">USOS: {inv.uses} / {inv.max_uses}</div>
                             </div>
-                            <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                  onClick={() => handleCopyInvite(inv.code)} 
+                                  className="text-[10px] font-bold uppercase text-zinc-500 hover:text-white transition-colors border border-zinc-800 px-2 py-1 rounded"
+                                >
+                                  Copiar
+                                </button>
+                                <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                </button>
+                            </div>
                           </div>
                         ))}
                         {allInvites.length === 0 && <p className="text-xs text-zinc-700 italic">Nenhum convite gerado.</p>}
@@ -1036,11 +1068,7 @@ const App: React.FC = () => {
                               </div>
                               
                               {/* Permissões Granulares */}
-                              {isSelfAdmin ? (
-                                <div className="pt-2 border-t border-zinc-800">
-                                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider italic">Permissões do administrador são fixas por segurança.</p>
-                                </div>
-                              ) : (
+                              {!isSelfAdmin && (
                                 <div className="pt-2 border-t border-zinc-800 grid grid-cols-2 gap-2">
                                   <button 
                                     onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
