@@ -32,36 +32,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           return;
         }
 
-        // Validar convite
-        const invite = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase());
+        // Validação do convite
+        const invite = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase().trim());
         if (!invite) {
           alert('Código de convite inválido ou expirado.');
+          setLoading(false);
           return;
         }
 
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { full_name: name } }
         });
+        if (error) throw error;
 
-        if (signUpError) throw signUpError;
-
-        if (signUpData.user) {
-          // Criar perfil com permissões do convite
+        if (data.user) {
+          // Criar perfil com as permissões do convite
           await dataServiceSupabase.createProfile({
-            user_id: signUpData.user.id,
+            user_id: data.user.id,
             display_name: name,
             role: invite.role,
             can_edit_items: invite.can_edit_items
           });
-
+          
           // Incrementar usos do convite
           await dataServiceSupabase.incrementInviteUses(invite.code);
-          
-          alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
-          setIsRegistering(false);
         }
+
+        alert('Cadastro realizado! Verifique seu email para confirmar ou tente entrar.');
+        setIsRegistering(false);
       } else {
         if (!email || !password) {
           alert('Preencha todos os campos.');
@@ -108,7 +108,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             {isRegistering ? 'Criar Conta' : 'Acervo Teatro'}
           </h1>
           <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-2">
-            {isRegistering ? 'É necessário um convite para participar' : 'Acesso Restrito ao Ministério'}
+            {isRegistering ? 'Um código de convite é obrigatório para cadastro' : 'Acesso Restrito ao Ministério'}
           </p>
         </div>
 
@@ -120,7 +120,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Código de Convite</label>
                   <Input 
                     type="text" 
-                    placeholder="ABC-123" 
+                    placeholder="Código 6-8 caracteres" 
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
                     required
@@ -176,7 +176,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={loading}
               className="py-3 font-bold uppercase tracking-widest"
             >
-              {loading ? 'Processando...' : (isRegistering ? 'Criar Conta' : 'Entrar no Sistema')}
+              {loading ? 'Processando...' : (isRegistering ? 'Registrar' : 'Entrar no Sistema')}
             </Button>
           </form>
 

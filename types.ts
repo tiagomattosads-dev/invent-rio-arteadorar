@@ -47,7 +47,7 @@ export interface Profile {
 }
 
 export interface Invite {
-  id?: string;
+  id: string;
   code: string;
   created_by: string;
   role: UserRole;

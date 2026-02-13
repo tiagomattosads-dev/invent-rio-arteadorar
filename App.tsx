@@ -7,7 +7,8 @@ import {
   Loan, 
   ItemCondition,
   Profile,
-  Invite
+  Invite,
+  UserRole
 } from './types';
 import { 
   INITIAL_CATEGORIES, 
@@ -45,11 +46,11 @@ const App: React.FC = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [dataLoading, setDataLoading] = useState(false);
-
-  // Admin state
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
   
+  // Admin Lists
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [allInvites, setAllInvites] = useState<Invite[]>([]);
+
   // Inventory Filtering
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
@@ -87,11 +88,10 @@ const App: React.FC = () => {
 
   // --- INITIALIZATION ---
   useEffect(() => {
-    // Supabase Auth Initialization
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        bootstrapProfile(session.user);
+        bootstrapProfile(session.user.id, session.user.email || '');
       } else {
         setAuthLoading(false);
       }
@@ -100,7 +100,7 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        bootstrapProfile(session.user);
+        bootstrapProfile(session.user.id, session.user.email || '');
       } else {
         setProfile(null);
         setAuthLoading(false);
@@ -113,19 +113,18 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const bootstrapProfile = async (user: any) => {
+  const bootstrapProfile = async (userId: string, email: string) => {
     try {
-      let p = await dataServiceSupabase.getProfile(user.id);
-      if (!p) {
-        // Se não existir, criar perfil padrão (usuário limitado)
-        p = await dataServiceSupabase.createProfile({
-          user_id: user.id,
-          display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Membro',
+      let userProfile = await dataServiceSupabase.getProfile(userId);
+      if (!userProfile) {
+        userProfile = await dataServiceSupabase.createProfile({
+          user_id: userId,
+          display_name: email,
           role: 'user',
           can_edit_items: false
         });
       }
-      setProfile(p);
+      setProfile(userProfile);
     } catch (err) {
       console.error("Erro ao carregar perfil:", err);
     } finally {
@@ -133,7 +132,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Fetch Data from Supabase
   useEffect(() => {
     if (session && profile) {
       loadAllData();
@@ -156,13 +154,6 @@ const App: React.FC = () => {
       setLoans(lns);
     } catch (err) {
       console.error("Erro ao carregar dados do Supabase:", err);
-      // Fallback
-      const storedCats = storageService.getCategories();
-      const storedItems = storageService.getItems();
-      const storedLoans = storageService.getLoans();
-      setCategories(storedCats || INITIAL_CATEGORIES);
-      setItems(storedItems || INITIAL_ITEMS);
-      setLoans(storedLoans || []);
     } finally {
       setDataLoading(false);
     }
@@ -170,14 +161,14 @@ const App: React.FC = () => {
 
   const loadAdminData = async () => {
     try {
-      const [ps, invs] = await Promise.all([
+      const [profilesList, invitesList] = await Promise.all([
         dataServiceSupabase.listProfiles(),
         dataServiceSupabase.listInvites()
       ]);
-      setProfiles(ps);
-      setInvites(invs);
+      setAllProfiles(profilesList);
+      setAllInvites(invitesList);
     } catch (err) {
-      console.error("Erro ao carregar dados administrativos:", err);
+      console.error("Erro ao carregar dados admin:", err);
     }
   };
 
@@ -322,6 +313,7 @@ const App: React.FC = () => {
   };
 
   const handleAddCategory = async (name: string) => {
+    if (!profile?.can_edit_items && profile?.role !== 'admin') return;
     setDataLoading(true);
     try {
       await dataServiceSupabase.createCategory(name);
@@ -334,6 +326,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    if (!profile?.can_edit_items && profile?.role !== 'admin') return;
     if (!confirm('Deseja realmente excluir esta categoria?')) return;
     setDataLoading(true);
     try {
@@ -351,8 +344,9 @@ const App: React.FC = () => {
     setIsDetailModalOpen(true);
   };
 
-  // Admin Handlers
-  const handleGenerateInvite = async (role: 'admin' | 'user', canEdit: boolean) => {
+  // --- ADMIN HANDLERS ---
+  const handleGenerateInvite = async (role: UserRole, canEdit: boolean) => {
+    if (profile?.role !== 'admin') return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setDataLoading(true);
     try {
@@ -362,8 +356,7 @@ const App: React.FC = () => {
         role,
         can_edit_items: canEdit,
         max_uses: 1,
-        uses: 0,
-        expires_at: null
+        uses: 0
       });
       await loadAdminData();
     } catch (err: any) {
@@ -374,45 +367,34 @@ const App: React.FC = () => {
   };
 
   const handleDeleteInvite = async (id: string) => {
-    if (!confirm("Excluir este convite?")) return;
+    if (profile?.role !== 'admin') return;
+    if (!confirm('Excluir este convite?')) return;
     setDataLoading(true);
     try {
       await dataServiceSupabase.deleteInvite(id);
       await loadAdminData();
     } catch (err: any) {
-      alert("Erro ao deletar convite: " + err.message);
+      alert("Erro ao excluir convite: " + err.message);
     } finally {
       setDataLoading(false);
     }
   };
 
-  const handleToggleUserPermission = async (userProfile: Profile) => {
+  const handleUpdateUserProfile = async (userId: string, updates: Partial<Profile>) => {
+    if (profile?.role !== 'admin') return;
     setDataLoading(true);
     try {
-      await dataServiceSupabase.updateProfile(userProfile.user_id, {
-        can_edit_items: !userProfile.can_edit_items
-      });
+      await dataServiceSupabase.updateProfile(userId, updates);
       await loadAdminData();
     } catch (err: any) {
-      alert("Erro ao atualizar usuário: " + err.message);
+      alert("Erro ao atualizar perfil: " + err.message);
     } finally {
       setDataLoading(false);
     }
   };
 
-  const handleUpdateUserRole = async (userProfile: Profile, newRole: 'admin' | 'user') => {
-    setDataLoading(true);
-    try {
-      await dataServiceSupabase.updateProfile(userProfile.user_id, {
-        role: newRole
-      });
-      await loadAdminData();
-    } catch (err: any) {
-      alert("Erro ao atualizar cargo: " + err.message);
-    } finally {
-      setDataLoading(false);
-    }
-  };
+  const canEdit = profile?.role === 'admin' || profile?.can_edit_items === true;
+  const isAdmin = profile?.role === 'admin';
 
   const isDark = theme === 'dark';
   const sidebarClass = isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-zinc-50 border-zinc-200';
@@ -435,7 +417,7 @@ const App: React.FC = () => {
     },
     { id: 'categories', label: 'Categorias', icon: 'M4 6h16M4 12h16M4 18h16' },
     { id: 'settings', label: 'Ajustes', icon: 'M12.22 2h-.44a2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1-2 2 2 2 0 0 0-2 2 2 2 0 0 1 0 4 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2 2 2 0 0 1 2 2 2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 2-2 2 2 0 0 0 2-2 2 2 0 0 1 0-4 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2 2 2 0 0 1-2-2 2 2 0 0 0-2-2zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6z' },
-    ...(profile?.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }] : [])
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' }] : [])
   ];
 
   const sortedLoans = useMemo(() => {
@@ -444,7 +426,7 @@ const App: React.FC = () => {
 
   if (authLoading) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-white text-xs uppercase tracking-widest font-bold animate-pulse">Autenticando Perfil...</div>
+      <div className="text-white text-xs uppercase tracking-widest font-bold animate-pulse">Iniciando Sistema...</div>
     </div>
   );
 
@@ -461,25 +443,26 @@ const App: React.FC = () => {
       )}
 
       <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
-        <div className="p-8 pb-4">
+        <div className="p-8">
           <h1 className={`text-xl font-bold tracking-tighter flex items-center gap-2 ${isDark ? 'text-white' : 'text-black'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-1.9a1.9 1.9 0 0 0 0-2.6L4.1 15.7a1.9 1.9 0 0 1 0-2.6L12 5.2a1.9 1.9 0 0 1 2.6 0l.8.8a1.9 1.9 0 0 0 2.6 0l1.9-1.9a1.9 1.9 0 0 1 2.6 0l.5.5"/><path d="m15 15 6 6"/><path d="m17.5 17.5 2.5 2.5"/></svg>
             ACERVO TEATRO
           </h1>
           <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Gestão de Inventário</p>
-        </div>
-
-        {profile && (
-          <div className="px-8 pb-6 border-b border-zinc-900/50 mb-6">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`text-xs font-bold ${isDark ? 'text-zinc-200' : 'text-zinc-700'}`}>Olá, {profile.display_name}</span>
-              <Badge variant={profile.role === 'admin' ? 'success' : 'default'}>{profile.role.toUpperCase()}</Badge>
-            </div>
-            {!profile.can_edit_items && profile.role !== 'admin' && (
-              <p className="text-[9px] text-zinc-600 uppercase font-medium">Acesso de visualização</p>
-            )}
+          
+          <div className="mt-8 pt-6 border-t border-zinc-900/50 animate-in fade-in duration-700">
+             <div className="flex flex-col gap-1">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>Bem-vindo,</span>
+                <div className="flex items-center gap-2 overflow-hidden">
+                   <span className="text-xs font-bold truncate">{profile?.display_name || session?.user?.email}</span>
+                   <Badge variant={isAdmin ? 'success' : 'default'}>{profile?.role === 'admin' ? 'ADMIN' : 'USUÁRIO'}</Badge>
+                </div>
+                {!canEdit && (
+                  <span className="text-[9px] text-zinc-600 font-medium uppercase mt-1 italic">Apenas Visualização</span>
+                )}
+             </div>
           </div>
-        )}
+        </div>
         
         <nav className="flex-1 px-4 space-y-1">
           {NAV_ITEMS.map(tab => (
@@ -534,12 +517,18 @@ const App: React.FC = () => {
                 <h2 className="text-3xl font-bold tracking-tight">Itens do Acervo</h2>
                 <p className="text-zinc-500">Gerencie o acervo de figurinos e cenários.</p>
               </div>
-              {(profile?.can_edit_items || profile?.role === 'admin') && (
+              {canEdit && (
                 <Button onClick={() => { setItemForm({}); setIsItemModalOpen(true); }} variant="primary">
                   + Novo Item
                 </Button>
               )}
             </header>
+
+            {!canEdit && (
+              <div className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-xs text-zinc-500 italic">
+                Você não tem permissão para editar itens. Entre em contato com um administrador para solicitar permissões de edição.
+              </div>
+            )}
 
             <div className={`flex flex-col md:flex-row gap-4 p-4 border rounded-lg ${filterSectionClass}`}>
               <div className="flex-1 relative">
@@ -606,7 +595,7 @@ const App: React.FC = () => {
                       >
                         {item.status === 'Disponível' ? 'Emprestar' : 'Ver Empréstimo'}
                       </Button>
-                      {(profile?.can_edit_items || profile?.role === 'admin') && (
+                      {canEdit && (
                         <Button 
                           variant="secondary" 
                           className="px-2"
@@ -767,83 +756,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {activeView === 'admin' && profile?.role === 'admin' && (
-          <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-             <header>
-                <h2 className="text-3xl font-bold tracking-tight">Painel Administrativo</h2>
-                <p className="text-zinc-500">Gestão de acessos, convites e permissões de membros.</p>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Convites */}
-              <Card className="p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
-                   <h3 className="font-bold uppercase tracking-widest text-xs">Convites de Acesso</h3>
-                   <div className="flex gap-2">
-                     <Button variant="outline" className="text-[9px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ Convite User</Button>
-                     <Button variant="outline" className="text-[9px] px-2 py-1" onClick={() => handleGenerateInvite('user', true)}>+ Convite Editor</Button>
-                   </div>
-                </div>
-                <div className="space-y-3">
-                   {invites.length === 0 ? (
-                     <p className="text-xs text-zinc-600 italic py-4">Nenhum convite pendente.</p>
-                   ) : (
-                     invites.map(inv => (
-                       <div key={inv.id} className="flex items-center justify-between p-3 rounded bg-zinc-900/50 border border-zinc-800">
-                         <div>
-                            <p className="text-sm font-bold font-mono text-white">{inv.code}</p>
-                            <p className="text-[9px] text-zinc-500 uppercase">{inv.role} • {inv.can_edit_items ? 'Pode editar' : 'Apenas ver'}</p>
-                         </div>
-                         <div className="flex items-center gap-4">
-                            <span className="text-[10px] text-zinc-600 font-mono">{inv.uses}/{inv.max_uses}</span>
-                            <button onClick={() => inv.id && handleDeleteInvite(inv.id)} className="text-red-900 hover:text-red-500 transition-colors">
-                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                            </button>
-                         </div>
-                       </div>
-                     ))
-                   )}
-                </div>
-              </Card>
-
-              {/* Usuários */}
-              <Card className="p-6 space-y-6">
-                <div className="border-b border-zinc-900 pb-4">
-                   <h3 className="font-bold uppercase tracking-widest text-xs">Membros do Acervo</h3>
-                </div>
-                <div className="space-y-3">
-                   {profiles.map(p => (
-                     <div key={p.user_id} className="flex items-center justify-between p-3 rounded bg-zinc-900/50 border border-zinc-800">
-                        <div>
-                           <p className="text-sm font-bold text-white">{p.display_name}</p>
-                           <p className="text-[9px] text-zinc-500 uppercase">{p.role} • {p.can_edit_items ? 'Editor' : 'Leitor'}</p>
-                        </div>
-                        {p.user_id !== session.user.id && (
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => handleToggleUserPermission(p)} 
-                              title="Alternar permissão de edição"
-                              className={`p-1.5 rounded border transition-colors ${p.can_edit_items ? 'border-zinc-700 bg-zinc-800 text-white' : 'border-zinc-800 text-zinc-700'}`}
-                            >
-                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>
-                            <button 
-                              onClick={() => handleUpdateUserRole(p, p.role === 'admin' ? 'user' : 'admin')} 
-                              title="Tornar Admin/User"
-                              className={`p-1.5 rounded border transition-colors ${p.role === 'admin' ? 'border-zinc-700 bg-zinc-800 text-white' : 'border-zinc-800 text-zinc-700'}`}
-                            >
-                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            </button>
-                          </div>
-                        )}
-                     </div>
-                   ))}
-                </div>
-              </Card>
-            </div>
-          </div>
-        )}
-
         {activeView === 'categories' && (
           <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <header>
@@ -852,7 +764,7 @@ const App: React.FC = () => {
             </header>
 
             <div className={`border rounded-xl p-8 space-y-6 ${isDark ? 'bg-zinc-950 border-zinc-900' : 'bg-white border-zinc-200 shadow-sm'}`}>
-              {(profile?.can_edit_items || profile?.role === 'admin') ? (
+              {canEdit ? (
                 <form 
                   className="flex gap-2" 
                   onSubmit={(e) => {
@@ -869,14 +781,16 @@ const App: React.FC = () => {
                   <Button type="submit" variant="primary">Adicionar</Button>
                 </form>
               ) : (
-                <div className="text-center p-4 text-[10px] uppercase font-bold text-zinc-600 bg-zinc-900/30 rounded border border-dashed border-zinc-800">Visualização apenas</div>
+                <div className="p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg text-xs text-zinc-600 text-center uppercase font-bold tracking-widest">
+                   Modo de Visualização
+                </div>
               )}
 
               <div className="space-y-2">
                 {categories.map(cat => (
                   <div key={cat.id} className={`p-4 rounded-lg flex justify-between items-center group transition-colors ${isDark ? 'hover:bg-zinc-900 border border-transparent' : 'hover:bg-zinc-50 border border-zinc-100'}`}>
                     <span className={`font-medium ${isDark ? 'text-white' : 'text-zinc-900'}`}>{cat.name}</span>
-                    {(profile?.can_edit_items || profile?.role === 'admin') && (
+                    {canEdit && (
                       <Button 
                         variant="danger" 
                         className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1"
@@ -890,6 +804,83 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {activeView === 'admin' && isAdmin && (
+           <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+             <header>
+                <h2 className="text-3xl font-bold tracking-tight">Gestão Administrativa</h2>
+                <p className="text-zinc-500">Gerencie membros e convites de acesso.</p>
+             </header>
+
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* INVITES SECTION */}
+                <Card className="p-6 space-y-6">
+                   <div className="flex items-center justify-between">
+                      <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Convites Ativos</h3>
+                      <div className="flex gap-2">
+                         <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', false)}>+ User</Button>
+                         <Button variant="outline" className="text-[10px] px-2 py-1" onClick={() => handleGenerateInvite('user', true)}>+ Editor</Button>
+                      </div>
+                   </div>
+                   <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                      {allInvites.map(inv => (
+                        <div key={inv.id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
+                           <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-white text-sm">{inv.code}</span>
+                                <Badge variant={inv.can_edit_items ? 'success' : 'default'}>{inv.role === 'admin' ? 'ADMIN' : (inv.can_edit_items ? 'EDITOR' : 'LEITOR')}</Badge>
+                              </div>
+                              <div className="text-[9px] text-zinc-600 mt-1">USOS: {inv.uses} / {inv.max_uses}</div>
+                           </div>
+                           <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                           </button>
+                        </div>
+                      ))}
+                      {allInvites.length === 0 && <p className="text-xs text-zinc-700 italic">Nenhum convite gerado.</p>}
+                   </div>
+                </Card>
+
+                {/* USERS SECTION */}
+                <Card className="p-6 space-y-6">
+                   <h3 className="font-bold uppercase tracking-widest text-xs border-b border-zinc-900 pb-2">Membros Registrados</h3>
+                   <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                      {allProfiles.map(p => (
+                        <div key={p.user_id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
+                           <div className="flex flex-col gap-0.5 max-w-[60%]">
+                              <span className="text-xs font-bold text-white truncate">{p.display_name}</span>
+                              <div className="flex gap-1 mt-1">
+                                 <Badge variant={p.role === 'admin' ? 'success' : 'default'}>{p.role.toUpperCase()}</Badge>
+                                 <Badge variant={p.can_edit_items ? 'success' : 'default'}>{p.can_edit_items ? 'Pode Editar' : 'Apenas Ver'}</Badge>
+                              </div>
+                           </div>
+                           <div className="flex gap-1">
+                              {p.user_id !== session.user.id && (
+                                <>
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { role: p.role === 'admin' ? 'user' : 'admin' })}
+                                    className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold"
+                                    title="Alternar Cargo"
+                                  >
+                                    Cargo
+                                  </button>
+                                  <button 
+                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_edit_items: !p.can_edit_items })}
+                                    className="p-1.5 border border-zinc-800 rounded hover:bg-zinc-800 text-[10px] text-zinc-500 uppercase font-bold"
+                                    title="Alternar Permissão de Edição"
+                                  >
+                                    Edit
+                                  </button>
+                                </>
+                              )}
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </Card>
+             </div>
+           </div>
         )}
 
         {activeView === 'settings' && (
