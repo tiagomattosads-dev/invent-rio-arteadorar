@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ViewType, 
   Item, 
@@ -40,7 +40,7 @@ const App: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(false);
-  const [splashShownInSession, setSplashShownInSession] = useState(false);
+  const splashStarted = useRef(false);
 
   // --- APP STATE ---
   const [activeView, setActiveView] = useState<ViewType>('inventory');
@@ -123,7 +123,7 @@ const App: React.FC = () => {
         setAuthLoading(false);
         // Reset splash state on logout to allow it to show on next login
         sessionStorage.removeItem('splash_shown');
-        setSplashShownInSession(false);
+        splashStarted.current = false;
       }
     });
 
@@ -133,23 +133,31 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Control Splash Screen visibility
+  // PARTE A: Control Splash Screen visibility with fixed timers
   useEffect(() => {
     const splashShown = sessionStorage.getItem('splash_shown');
-    // FIXED DURATION LOGIC: Show splash if session exists, auth is finished, and not yet shown
-    if (session && !authLoading && !splashShown && !splashShownInSession) {
+    // FIXED DURATION LOGIC (4s) + FAIL-SAFE (4.5s)
+    if (session && !authLoading && !splashShown && !splashStarted.current) {
+      splashStarted.current = true;
       setIsSplashVisible(true);
-      setSplashShownInSession(true);
       sessionStorage.setItem('splash_shown', 'true');
       
-      const timer = setTimeout(() => {
+      const primaryTimer = setTimeout(() => {
         setIsSplashVisible(false);
-        setActiveView('inventory'); // Ensure user lands on Inventory view
+        setActiveView('inventory');
       }, 4000);
 
-      return () => clearTimeout(timer);
+      const failSafeTimer = setTimeout(() => {
+        setIsSplashVisible(false);
+        setActiveView('inventory');
+      }, 4500);
+
+      return () => {
+        clearTimeout(primaryTimer);
+        clearTimeout(failSafeTimer);
+      };
     }
-  }, [session, authLoading, splashShownInSession]);
+  }, [session, authLoading]);
 
   const bootstrapProfile = async (userId: string, email: string) => {
     try {
@@ -499,9 +507,9 @@ const App: React.FC = () => {
     return <Login onLogin={() => {}} />;
   }
 
-  // Splash Screen Overlay
+  // PARTE B: Priority for name display on Splash
   if (isSplashVisible) {
-    // Priority for name: profile > auth metadata > email prefix
+    // Priority: profile.display_name > metadata.full_name > email prefix
     const displayName = profile?.display_name || session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Usuário';
     return (
       <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center animate-in fade-in duration-500 ${isDark ? 'bg-black text-white' : 'bg-white text-black'}`}>
