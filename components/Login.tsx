@@ -134,20 +134,30 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           throw error;
         }
 
-        // Persistência DEFINITIVA no public.profiles
+        // Persistência SEGURA no public.profiles
         const registeredUser = data.user || (await supabase.auth.getUser()).data.user;
         if (registeredUser) {
-           await supabase.from('profiles').upsert({
-              user_id: registeredUser.id,
-              display_name: name.trim(),
-              role: 'user',
-              can_edit_items: false,
-              can_borrow: false,
-              can_return: false,
-              can_manage_invites: false,
-              can_manage_users: false,
-              updated_at: new Date().toISOString()
-           }, { onConflict: 'user_id' });
+           // Verifica se o perfil já existe para não sobrescrever permissões
+           const existingProfile = await dataServiceSupabase.getProfile(registeredUser.id);
+           
+           if (!existingProfile) {
+              await dataServiceSupabase.createProfile({
+                 user_id: registeredUser.id,
+                 display_name: name.trim(),
+                 role: 'user', // Apenas para novos registros
+                 can_edit_items: false,
+                 can_borrow: false,
+                 can_return: false,
+                 can_manage_invites: false,
+                 can_manage_users: false
+              });
+           } else {
+              // Se já existe (ex: re-cadastro ou erro de fluxo), apenas atualiza o nome
+              await dataServiceSupabase.updateProfile(registeredUser.id, {
+                 display_name: name.trim(),
+                 updated_at: new Date().toISOString()
+              } as any);
+           }
         }
 
         showAlert(

@@ -16,7 +16,7 @@ export const dataServiceSupabase = {
   async createProfile(profile: Partial<Profile>): Promise<Profile> {
     const { data, error } = await supabase
       .from("profiles")
-      .upsert([{
+      .insert([{ // Alterado de upsert para insert para evitar sobrescrever roles existentes
         user_id: profile.user_id,
         display_name: profile.display_name,
         role: profile.role || 'user',
