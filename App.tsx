@@ -111,6 +111,8 @@ const App: React.FC = () => {
   const canManageInvites = isAdmin || profile?.can_manage_invites === true;
   const canManageUsers = isAdmin || profile?.can_manage_users === true;
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
   // --- INITIALIZATION ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -378,6 +380,24 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteLoan = async (loan: Loan) => {
+    if (!canEditItems) {
+      showAlert("Você não tem permissão para excluir registros de empréstimo.", "Acesso Restrito");
+      return;
+    }
+    showConfirm('Deseja excluir este registro de empréstimo permanentemente? Esta ação não pode ser desfeita.', 'Confirmar Exclusão', async () => {
+      setDataLoading(true);
+      try {
+        await dataServiceSupabase.deleteLoan(loan.id);
+        await loadAllData();
+      } catch (err: any) {
+        showAlert("Erro ao excluir empréstimo: " + err.message, 'Erro');
+      } finally {
+        setDataLoading(false);
+      }
+    });
+  };
+
   const handleSaveItem = async () => {
     if (!canEditItems) {
       showAlert("Você não tem permissão para editar itens.", "Acesso Restrito");
@@ -609,22 +629,39 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <aside className={`hidden lg:flex w-64 border-r flex-shrink-0 flex-col no-print ${sidebarClass}`}>
-        <div className="p-8">
-          <h1 className={`text-xl font-bold tracking-tighter flex items-center gap-2 ${isDark ? 'text-white' : 'text-black'}`}>
-            {!logoError ? (
-              <img 
-                src="https://res.cloudinary.com/dutufef4s/image/upload/v1770989288/theatre_njtpog.png" 
-                alt="Acervo Teatro" 
-                className={`w-6 h-6 object-contain grayscale ${isDark ? 'invert' : ''}`}
-                onError={() => setLogoError(true)}
-              />
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-1.9a1.9 1.9 0 0 0 0-2.6L4.1 15.7a1.9 1.9 0 0 1 0-2.6L12 5.2a1.9 1.9 0 0 1 2.6 0l.8.8a1.9 1.9 0 0 0 2.6 0l1.9-1.9a1.9 1.9 0 0 1 2.6 0l.5.5"/><path d="m15 15 6 6"/><path d="m17.5 17.5 2.5 2.5"/></svg>
-            )}
-            ACERVO TEATRO
-          </h1>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Gestão de Inventário</p>
+      <aside className={`hidden lg:flex border-r flex-shrink-0 flex-col no-print transition-all duration-300 relative ${isSidebarCollapsed ? 'w-20' : 'w-72'} ${sidebarClass}`}>
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className={`absolute -right-3 top-9 w-6 h-6 flex items-center justify-center rounded-full border shadow-sm z-50 transition-colors ${isDark ? 'bg-black border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border-zinc-200 text-zinc-500 hover:text-black'}`}
+          title={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
+        >
+          {isSidebarCollapsed ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          )}
+        </button>
+
+        <div className={`p-8 ${isSidebarCollapsed ? 'px-4 flex flex-col items-center' : 'flex items-center gap-3'}`}>
+          {!logoError ? (
+            <img 
+              src="https://res.cloudinary.com/dutufef4s/image/upload/v1770989288/theatre_njtpog.png" 
+              alt="Acervo Teatro" 
+              className={`object-contain grayscale ${isDark ? 'invert' : ''} ${isSidebarCollapsed ? 'w-8 h-8 mt-4' : 'w-8 h-8'}`}
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isSidebarCollapsed ? 'mt-4' : ''}><path d="m3 21 1.9-1.9a1.9 1.9 0 0 0 0-2.6L4.1 15.7a1.9 1.9 0 0 1 0-2.6L12 5.2a1.9 1.9 0 0 1 2.6 0l.8.8a1.9 1.9 0 0 0 2.6 0l1.9-1.9a1.9 1.9 0 0 1 2.6 0l.5.5"/><path d="m15 15 6 6"/><path d="m17.5 17.5 2.5 2.5"/></svg>
+          )}
+
+          {!isSidebarCollapsed && (
+            <div>
+              <h1 className={`text-xl font-bold tracking-tighter leading-none whitespace-nowrap ${isDark ? 'text-white' : 'text-black'}`}>
+                ACERVO TEATRO
+              </h1>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Gestão de Inventário</p>
+            </div>
+          )}
         </div>
         
         <nav className="flex-1 px-4 space-y-1">
@@ -636,7 +673,8 @@ const App: React.FC = () => {
                 activeView === tab.id 
                 ? (isDark ? 'bg-white text-black font-bold' : 'bg-black text-white font-bold')
                 : `text-zinc-500 hover:text-white ${isDark ? 'hover:bg-zinc-900' : 'hover:bg-zinc-200 hover:text-black'}`
-              }`}
+              } ${isSidebarCollapsed ? 'justify-center px-2' : ''}`}
+              title={isSidebarCollapsed ? tab.label : ''}
             >
               {tab.isUrl ? (
                 <div 
@@ -648,25 +686,26 @@ const App: React.FC = () => {
                     maskSize: 'contain',
                     WebkitMaskSize: 'contain'
                   }}
-                  className="w-[18px] h-[18px] bg-current" 
+                  className="w-[18px] h-[18px] bg-current flex-shrink-0" 
                 />
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
                   <path d={tab.icon as string}/>
                 </svg>
               )}
-              {tab.label}
+              {!isSidebarCollapsed && tab.label}
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-zinc-900 mt-auto">
+        <div className={`p-4 border-t border-zinc-900 mt-auto ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
            <button 
              onClick={handleLogout}
-             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition-all"
+             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-zinc-500 hover:text-red-400 hover:bg-zinc-900 transition-all ${isSidebarCollapsed ? 'justify-center px-2' : ''}`}
+             title={isSidebarCollapsed ? "Sair do Sistema" : ""}
            >
-             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-             Sair do Sistema
+             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+             {!isSidebarCollapsed && "Sair do Sistema"}
            </button>
         </div>
       </aside>
@@ -867,9 +906,21 @@ const App: React.FC = () => {
                               Devolver
                             </Button>
                           ) : (
-                            <div className="flex items-center justify-end gap-1 text-zinc-400">
-                               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                               <span className="text-[10px] font-bold uppercase">Finalizado</span>
+                            <div className="flex items-center justify-end gap-6">
+                               <div className="flex items-center gap-1 text-zinc-400">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                 <span className="text-[10px] font-bold uppercase">Finalizado</span>
+                               </div>
+                               {canEditItems && (
+                                 <Button 
+                                   variant="danger" 
+                                   className="px-2 py-1 h-7"
+                                   onClick={() => handleDeleteLoan(loan)}
+                                   title="Excluir registro"
+                                 >
+                                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                 </Button>
+                               )}
                             </div>
                           )}
                         </td>
@@ -892,9 +943,22 @@ const App: React.FC = () => {
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Item</span>
-                         {loan.status === 'Ativo' && new Date() > new Date(loan.dueDate) && (
-                           <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Atrasado</span>
-                         )}
+                         <div className="flex items-center gap-2">
+                           {loan.status === 'Ativo' && new Date() > new Date(loan.dueDate) && (
+                             <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Atrasado</span>
+                           )}
+                           {loan.status !== 'Ativo' && canEditItems && (
+                             <button 
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleDeleteLoan(loan);
+                               }}
+                               className="text-zinc-500 hover:text-red-500 transition-colors p-1"
+                             >
+                               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                             </button>
+                           )}
+                         </div>
                       </div>
                       <h3 className={`font-bold text-lg leading-tight ${isDark ? 'text-white' : 'text-black'}`}>{loan.itemName}</h3>
                     </div>
@@ -931,7 +995,7 @@ const App: React.FC = () => {
                           Devolver
                         </Button>
                       ) : (
-                        <div className={`flex items-center justify-center gap-2 border rounded-md text-[10px] font-bold uppercase ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-500' : 'bg-zinc-50 border-zinc-200 text-zinc-400'}`}>
+                        <div className={`flex items-center justify-center gap-2 border rounded-md text-[10px] font-bold uppercase py-2 ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-500' : 'bg-zinc-50 border-zinc-200 text-zinc-400'}`}>
                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                            Concluído
                         </div>

@@ -185,5 +185,9 @@ export const dataServiceSupabase = {
       return_condition: updates.returnCondition
     }).eq("id", id);
     if (error) throw error;
+  },
+  async deleteLoan(id: string) {
+    const { error } = await supabase.from("loans").delete().eq("id", id);
+    if (error) throw error;
   }
 };
