@@ -27,6 +27,7 @@ export interface Loan {
   itemId: string;
   itemName: string; // Denormalized for easy viewing
   borrowerName: string;
+  borrowerPhone?: string;
   ministry: string;
   reason: string;
   loanDate: string;

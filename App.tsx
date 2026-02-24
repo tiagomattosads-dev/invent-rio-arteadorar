@@ -300,8 +300,8 @@ const App: React.FC = () => {
       return;
     }
     if (!selectedItem) return;
-    if (!loanForm.borrowerName || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
-      showAlert('Por favor, preencha todos os campos obrigatórios, incluindo ministério, foto e assinatura.');
+    if (!loanForm.borrowerName || !loanForm.borrowerPhone || !loanForm.dueDate || !loanForm.consent || !loanForm.photo || !loanForm.signature || !loanForm.ministry) {
+      showAlert('Por favor, preencha todos os campos obrigatórios, incluindo celular, ministério, foto e assinatura.');
       return;
     }
 
@@ -314,6 +314,7 @@ const App: React.FC = () => {
         itemId: selectedItem.id,
         itemName: selectedItem.name,
         borrowerName: loanForm.borrowerName,
+        borrowerPhone: loanForm.borrowerPhone,
         ministry: loanForm.ministry === 'Outro' ? loanForm.otherMinistry : loanForm.ministry,
         reason: loanForm.reason,
         loanDate: new Date().toISOString(),
@@ -900,12 +901,12 @@ const App: React.FC = () => {
 
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Responsável</span>
-                      <p className={`font-semibold flex items-center gap-2 ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                      <div className={`font-semibold flex items-center gap-2 ${isDark ? 'text-zinc-200' : 'text-zinc-800'}`}>
                          <div className="w-5 h-5 rounded-full overflow-hidden bg-zinc-800">
                            <img src={loan.borrowerPhoto} className="w-full h-full object-cover" />
                          </div>
                          {loan.borrowerName}
-                      </p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 pt-2">
@@ -1227,6 +1228,16 @@ const App: React.FC = () => {
                   placeholder="Nome completo"
                 />
               </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Celular</label>
+                <Input 
+                  type="tel"
+                  value={loanForm.borrowerPhone}
+                  onChange={e => setLoanForm({...loanForm, borrowerPhone: e.target.value})}
+                  placeholder="Ex: (11) 99999-9999"
+                />
+              </div>
               
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-2 tracking-widest">Ministério / Depto</label>
@@ -1326,18 +1337,28 @@ const App: React.FC = () => {
             )}
           </div>
 
-          <div className={`flex items-start gap-4 p-5 rounded-xl border ${isDark ? 'bg-zinc-900/40 border-zinc-800' : 'bg-zinc-50 border-zinc-100'}`}>
-            <input 
-              type="checkbox" 
-              id="consent" 
-              className={`mt-1.5 h-4 w-4 rounded border-zinc-300 ${isDark ? 'accent-white' : 'accent-black'}`} 
-              checked={loanForm.consent}
-              onChange={e => setLoanForm({...loanForm, consent: e.target.checked})}
-            />
-            <label htmlFor="consent" className={`text-xs leading-relaxed ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+          <button
+            type="button"
+            onClick={() => setLoanForm({...loanForm, consent: !loanForm.consent})}
+            className={`w-full flex items-start gap-4 p-5 rounded-xl border transition-all duration-200 text-left group ${
+              loanForm.consent
+                ? (isDark ? 'bg-zinc-900 border-white ring-1 ring-white' : 'bg-zinc-50 border-black ring-1 ring-black')
+                : (isDark ? 'bg-zinc-900/40 border-zinc-800 hover:bg-zinc-900' : 'bg-zinc-50 border-zinc-200 hover:bg-zinc-100')
+            }`}
+          >
+            <div className={`mt-0.5 shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-colors ${
+              loanForm.consent
+                ? (isDark ? 'bg-white border-white text-black' : 'bg-black border-black text-white')
+                : (isDark ? 'border-zinc-600 bg-transparent' : 'border-zinc-300 bg-white')
+            }`}>
+              {loanForm.consent && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              )}
+            </div>
+            <span className={`text-xs leading-relaxed select-none ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>
               Declaro que recebi o item acima em boas condições e comprometo-me a devolvê-lo na data prevista, zelando por sua integridade. Autorizo o armazenamento digital deste termo, incluindo foto e assinatura, para fins de controle interno da organização.
-            </label>
-          </div>
+            </span>
+          </button>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="secondary" onClick={() => setIsLoanModalOpen(false)} disabled={dataLoading}>Cancelar</Button>
@@ -1562,6 +1583,10 @@ const App: React.FC = () => {
                 <section>
                   <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Finalidade</label>
                   <p className={`text-sm italic ${isDark ? 'text-zinc-300' : 'text-zinc-600'}`}>"{selectedLoan.reason || 'Não informado'}"</p>
+                </section>
+                <section>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1 tracking-widest">Contato</label>
+                  <p className={`text-sm font-medium ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{selectedLoan.borrowerPhone || '—'}</p>
                 </section>
               </div>
               
