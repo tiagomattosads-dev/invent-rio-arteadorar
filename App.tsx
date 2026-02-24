@@ -1718,3 +1718,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+// End of App component
