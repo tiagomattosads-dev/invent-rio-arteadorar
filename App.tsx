@@ -1153,12 +1153,6 @@ const App: React.FC = () => {
                                   >
                                     Devolver: {p.can_return ? 'SIM' : 'NÃO'}
                                   </button>
-                                  <button 
-                                    onClick={() => handleUpdateUserProfile(p.user_id, { can_manage_invites: !p.can_manage_invites })}
-                                    className={`px-2 py-1.5 rounded text-[9px] font-bold uppercase border transition-all ${p.can_manage_invites ? 'bg-zinc-100 text-black border-zinc-100' : 'bg-transparent text-zinc-600 border-zinc-800'}`}
-                                  >
-                                    Convites: {p.can_manage_invites ? 'SIM' : 'NÃO'}
-                                  </button>
                                 </div>
                               )}
                             </div>
