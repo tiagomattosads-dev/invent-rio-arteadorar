@@ -100,9 +100,7 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSave, onClear, isDa
 
   return (
     <div className="w-full flex flex-col gap-3">
-      <div className={`relative w-full aspect-[2/1] border rounded-lg overflow-hidden touch-none transition-colors ${
-        isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-zinc-100 border-zinc-200'
-      }`}>
+      <div className={`relative w-full aspect-[2/1] border rounded-lg overflow-hidden touch-none transition-colors bg-zinc-100 border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800`}>
         <canvas
           ref={canvasRef}
           width={800}
@@ -117,7 +115,7 @@ const SignatureCanvas: React.FC<SignatureCanvasProps> = ({ onSave, onClear, isDa
           onTouchEnd={stopDrawing}
         />
         <div className="absolute top-2 left-2 pointer-events-none">
-          <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-700' : 'text-zinc-400'}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-700`}>
             Assine aqui
           </span>
         </div>

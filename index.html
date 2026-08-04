@@ -13,6 +13,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -25,14 +30,28 @@
         ::-webkit-scrollbar {
             width: 8px;
         }
-        ::-webkit-scrollbar-track {
+        
+        /* Light mode scrollbar */
+        html:not(.dark) ::-webkit-scrollbar-track {
+            background: #f4f4f5;
+        }
+        html:not(.dark) ::-webkit-scrollbar-thumb {
+            background: #d4d4d8;
+            border-radius: 4px;
+        }
+        html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1aa;
+        }
+
+        /* Dark mode scrollbar */
+        html.dark ::-webkit-scrollbar-track {
             background: #000;
         }
-        ::-webkit-scrollbar-thumb {
+        html.dark ::-webkit-scrollbar-thumb {
             background: #27272a;
             border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover {
+        html.dark ::-webkit-scrollbar-thumb:hover {
             background: #3f3f46;
         }
         @media print {
@@ -51,7 +70,7 @@
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-black text-white selection:bg-white selection:text-black">
+<body class="bg-white text-black dark:bg-black dark:text-white selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
 <script type="module" src="/index.tsx"></script>
