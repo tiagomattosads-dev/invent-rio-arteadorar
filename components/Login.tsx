@@ -188,7 +188,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
     } catch (err: any) {
       console.error(err);
-      showAlert(err.message || 'Erro ao processar. Tente novamente.', 'Erro');
+      if (err.message === 'Invalid login credentials') {
+        showAlert('Email ou senha incorretos.', 'Erro de Login');
+      } else if (err.message === 'Email not confirmed') {
+        showAlert('Por favor, confirme seu email antes de fazer login.', 'Email não confirmado');
+      } else {
+        showAlert(err.message || 'Erro ao processar. Tente novamente.', 'Erro');
+      }
     } finally {
       setLoading(false);
     }
