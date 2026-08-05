@@ -1,8 +1,7 @@
 {
   "name": "Acervo Teatro",
-  "short_name": "Acervo Teatro",
+  "short_name": "Acervo",
   "start_url": "/",
-  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
