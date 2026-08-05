@@ -193,6 +193,9 @@ const App: React.FC = () => {
             console.error("Erro ao limpar invite_code do metadata:", updateError);
           } else {
             console.log("invite_code limpo do metadata com sucesso.");
+            setAuthLoading(false);
+            setIsSplashVisible(false);
+            setActiveView('inventory');
           }
         } catch (err) {
           console.error("Erro ao resgatar convite pendente:", err);
@@ -1108,7 +1111,7 @@ const App: React.FC = () => {
                                   </div>
                                   {isUsed ? (
                                     <div className="text-[10px] text-zinc-500 mt-1 uppercase font-bold tracking-widest">
-                                      Utilizado por: {inv.profiles?.display_name || 'Desconhecido'}
+                                      Utilizado por: {((Array.isArray(inv.profiles) ? (inv.profiles as any)[0]?.display_name : inv.profiles?.display_name) || 'Desconhecido')}
                                     </div>
                                   ) : (
                                     <div className="text-[9px] text-zinc-600 mt-1 uppercase tracking-widest">USOS: {inv.uses} / {inv.max_uses}</div>
