@@ -174,25 +174,14 @@ const App: React.FC = () => {
     const userId = user.id;
     
     try {
-      // 1. Verificar se há convite pendente para resgate
-      const pendingCode = localStorage.getItem('pending_invite_code');
-      if (pendingCode) {
-        try {
-          await dataServiceSupabase.redeemInvite(pendingCode, userId);
-          localStorage.removeItem('pending_invite_code');
-        } catch (err) {
-          console.error("Erro ao resgatar convite pendente:", err);
-        }
-      }
-
-      // 2. Buscar perfil existente
+      // 1. Buscar perfil existente
       let userProfile = await dataServiceSupabase.getProfile(userId);
       
-      // 3. Prioridade de Nome: Metadata (Cadastro) > Fallback Genérico (NUNCA email)
+      // 2. Prioridade de Nome: Metadata (Cadastro) > Fallback Genérico (NUNCA email)
       const metaName = user.user_metadata?.full_name;
       const finalDisplayName = metaName || 'Usuário';
 
-      // 4. Criar ou Atualizar perfil (Overwrite de display_name)
+      // 3. Criar ou Atualizar perfil (Overwrite de display_name)
       if (!userProfile) {
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,
@@ -200,6 +189,16 @@ const App: React.FC = () => {
           role: 'user',
           can_edit_items: false
         });
+
+        // 4. Verificar se há convite no metadata para resgate (Primeiro login pós-confirmação)
+        const inviteCode = user.user_metadata?.invite_code;
+        if (inviteCode) {
+          try {
+            await dataServiceSupabase.redeemInvite(inviteCode, userId);
+          } catch (err) {
+            console.error("Erro ao resgatar convite pendente:", err);
+          }
+        }
       } else if (metaName && userProfile.display_name !== metaName) {
         // Se o nome no Auth Metadata mudou (ex: no cadastro recente), atualiza o Profile
         await dataServiceSupabase.updateProfile(userId, { display_name: metaName });

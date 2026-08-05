@@ -123,27 +123,33 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           return;
         }
 
-        // Validação do convite via RPC
-        const isValid = await dataServiceSupabase.validateInvite(inviteCode.toUpperCase().trim());
-        if (!isValid) {
-          showAlert('Código de convite inválido ou expirado.');
+        // Validar convite na tabela invites
+        const inviteCodeSanitized = inviteCode.toUpperCase().trim();
+        const { data: invite, error: inviteError } = await supabase
+          .from('invites')
+          .select('*')
+          .eq('code', inviteCodeSanitized)
+          .maybeSingle();
+
+        if (inviteError || !invite || invite.uses > 0) {
+          showAlert('Código de membro já utilizado, peça a liderança do ministério para lhe enviar um novo código');
           setLoading(false);
           return;
         }
 
-        // Salvar código para resgate após o login/confirmação
-        localStorage.setItem('pending_invite_code', inviteCode.toUpperCase().trim());
-
-        // SignUp com full_name no metadata
-        const { data, error } = await supabase.auth.signUp({
+        // SignUp com full_name e invite_code no metadata
+        const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: name.trim() } }
+          options: { 
+            data: { 
+              full_name: name.trim(),
+              invite_code: inviteCodeSanitized
+            } 
+          }
         });
 
         if (error) {
-          localStorage.removeItem('pending_invite_code');
-          
           if (error.message.includes('rate limit')) {
             showAlert('Limite temporário de envios. Aguarde alguns minutos e tente novamente.', 'Limite Excedido');
             setLoading(false);
@@ -162,34 +168,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           throw error;
         }
 
-        // Persistência SEGURA no public.profiles
-        const registeredUser = data.user || (await supabase.auth.getUser()).data.user;
-        if (registeredUser) {
-           // Verifica se o perfil já existe para não sobrescrever permissões
-           const existingProfile = await dataServiceSupabase.getProfile(registeredUser.id);
-           
-           if (!existingProfile) {
-              await dataServiceSupabase.createProfile({
-                 user_id: registeredUser.id,
-                 display_name: name.trim(),
-                 role: 'user', // Apenas para novos registros
-                 can_edit_items: false,
-                 can_borrow: false,
-                 can_return: false,
-                 can_manage_invites: false,
-                 can_manage_users: false
-              });
-           } else {
-              // Se já existe (ex: re-cadastro ou erro de fluxo), apenas atualiza o nome
-              await dataServiceSupabase.updateProfile(registeredUser.id, {
-                 display_name: name.trim(),
-                 updated_at: new Date().toISOString()
-              } as any);
-           }
-        }
-
         showAlert(
-          'Cadastro realizado! Verifique seu email para confirmar ou tente entrar.', 
+          'Cadastro realizado! Verifique seu email para confirmar e ativar sua conta.', 
           'Sucesso',
           () => {
             setIsRegistering(false);
