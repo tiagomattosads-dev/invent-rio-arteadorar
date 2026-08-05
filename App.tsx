@@ -178,7 +178,7 @@ const App: React.FC = () => {
       const pendingCode = localStorage.getItem('pending_invite_code');
       if (pendingCode) {
         try {
-          await dataServiceSupabase.redeemInvite(pendingCode);
+          await dataServiceSupabase.redeemInvite(pendingCode, userId);
           localStorage.removeItem('pending_invite_code');
         } catch (err) {
           console.error("Erro ao resgatar convite pendente:", err);
@@ -1074,28 +1074,44 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                        {allInvites.map(inv => (
-                          <div key={inv.id} className="p-3 bg-zinc-900/50 border border-zinc-800 rounded flex items-center justify-between">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-white text-sm">{inv.code}</span>
-                                  <Badge variant={inv.can_edit_items ? 'success' : 'default'}>{inv.role === 'admin' ? 'ADMIN' : (inv.can_edit_items ? 'EDITOR' : 'LEITOR')}</Badge>
-                                </div>
-                                <div className="text-[9px] text-zinc-600 mt-1">USOS: {inv.uses} / {inv.max_uses}</div>
+                        {allInvites.map(inv => {
+                          const isUsed = inv.uses > 0;
+                          return (
+                            <div key={inv.id} className={`p-3 border rounded flex items-center justify-between ${isUsed ? 'bg-zinc-950 border-zinc-900 opacity-60' : 'bg-zinc-900/50 border-zinc-800'}`}>
+                              <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`font-mono font-bold text-sm ${isUsed ? 'text-zinc-500' : 'text-white'}`}>{inv.code}</span>
+                                    <Badge variant={inv.can_edit_items ? 'success' : 'default'}>{inv.role === 'admin' ? 'ADMIN' : (inv.can_edit_items ? 'EDITOR' : 'LEITOR')}</Badge>
+                                    {isUsed ? (
+                                      <Badge variant="default">Usado</Badge>
+                                    ) : (
+                                      <Badge variant="success">Pendente</Badge>
+                                    )}
+                                  </div>
+                                  {isUsed ? (
+                                    <div className="text-[10px] text-zinc-500 mt-1 uppercase font-bold tracking-widest">
+                                      Utilizado por: {inv.profiles?.display_name || 'Desconhecido'}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[9px] text-zinc-600 mt-1 uppercase tracking-widest">USOS: {inv.uses} / {inv.max_uses}</div>
+                                  )}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                  {!isUsed && (
+                                    <button 
+                                      onClick={() => handleCopyInvite(inv.code)} 
+                                      className="text-[10px] font-bold uppercase text-zinc-500 hover:text-white transition-colors border border-zinc-800 px-2 py-1 rounded"
+                                    >
+                                      Copiar
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                  </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <button 
-                                  onClick={() => handleCopyInvite(inv.code)} 
-                                  className="text-[10px] font-bold uppercase text-zinc-500 hover:text-white transition-colors border border-zinc-800 px-2 py-1 rounded"
-                                >
-                                  Copiar
-                                </button>
-                                <button onClick={() => handleDeleteInvite(inv.id)} className="text-zinc-700 hover:text-white transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                                </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {allInvites.length === 0 && <p className="text-xs text-zinc-700 italic">Nenhum convite gerado.</p>}
                     </div>
                   </Card>

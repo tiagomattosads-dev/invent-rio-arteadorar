@@ -60,6 +60,10 @@ export interface Invite {
   max_uses: number;
   uses: number;
   expires_at: string | null;
+  used_by?: string;
+  profiles?: {
+    display_name: string;
+  };
 }
 
 export type ViewType = 'inventory' | 'loans' | 'categories' | 'settings' | 'admin';

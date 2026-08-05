@@ -43,7 +43,7 @@ export const dataServiceSupabase = {
 
   // Invites
   async listInvites(): Promise<Invite[]> {
-    const { data, error } = await supabase.from("invites").select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("invites").select("*, profiles!used_by(display_name)").order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -55,9 +55,12 @@ export const dataServiceSupabase = {
     }
     return !!data;
   },
-  async redeemInvite(code: string): Promise<void> {
+  async redeemInvite(code: string, userId?: string): Promise<void> {
     const { error } = await supabase.rpc('redeem_invite', { p_code: code });
     if (error) throw error;
+    if (userId) {
+      await supabase.from("invites").update({ used_by: userId }).eq("code", code);
+    }
   },
   async createInvite(invite: Partial<Invite>) {
     const { data, error } = await supabase.from("invites").insert([invite]).select().single();
