@@ -56,10 +56,20 @@ export const dataServiceSupabase = {
     return !!data;
   },
   async redeemInvite(code: string, userId?: string): Promise<void> {
+    console.log("Chamando RPC redeem_invite para code:", code);
     const { error } = await supabase.rpc('redeem_invite', { p_code: code });
-    if (error) throw error;
+    if (error) {
+      console.error("Erro na RPC redeem_invite:", error);
+      throw error;
+    }
     if (userId) {
-      await supabase.from("invites").update({ used_by: userId }).eq("code", code);
+      console.log("Atualizando invite com used_by para userId:", userId);
+      const { error: updateError, data } = await supabase.from("invites").update({ used_by: userId }).eq("code", code).select();
+      if (updateError) {
+        console.error("Erro no update da tabela invites (used_by):", updateError);
+        throw updateError;
+      }
+      console.log("Resultado do update invites:", data);
     }
   },
   async createInvite(invite: Partial<Invite>) {

@@ -174,8 +174,10 @@ const App: React.FC = () => {
     const userId = user.id;
     
     try {
+      console.log("Iniciando bootstrapProfile para userId:", userId);
       // 1. Buscar perfil existente
       let userProfile = await dataServiceSupabase.getProfile(userId);
+      console.log("Perfil existente encontrado:", userProfile);
       
       // 2. Prioridade de Nome: Metadata (Cadastro) > Fallback Genérico (NUNCA email)
       const metaName = user.user_metadata?.full_name;
@@ -183,24 +185,30 @@ const App: React.FC = () => {
 
       // 3. Criar ou Atualizar perfil (Overwrite de display_name)
       if (!userProfile) {
+        console.log("Criando novo perfil para userId:", userId, "com nome:", finalDisplayName);
         userProfile = await dataServiceSupabase.createProfile({
           user_id: userId,
           display_name: finalDisplayName,
           role: 'user',
           can_edit_items: false
         });
+        console.log("Perfil criado com sucesso:", userProfile);
 
         // 4. Verificar se há convite no metadata para resgate (Primeiro login pós-confirmação)
         const inviteCode = user.user_metadata?.invite_code;
+        console.log("Código de convite encontrado no metadata:", inviteCode);
         if (inviteCode) {
           try {
+            console.log("Tentando resgatar convite:", inviteCode, "para userId:", userId);
             await dataServiceSupabase.redeemInvite(inviteCode, userId);
+            console.log("Convite resgatado com sucesso e atualizado na tabela invites.");
           } catch (err) {
             console.error("Erro ao resgatar convite pendente:", err);
           }
         }
       } else if (metaName && userProfile.display_name !== metaName) {
         // Se o nome no Auth Metadata mudou (ex: no cadastro recente), atualiza o Profile
+        console.log("Atualizando display_name do perfil existente de", userProfile.display_name, "para", metaName);
         await dataServiceSupabase.updateProfile(userId, { display_name: metaName });
         userProfile = { ...userProfile, display_name: metaName };
       }
