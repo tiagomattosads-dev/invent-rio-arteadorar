@@ -184,21 +184,17 @@ const App: React.FC = () => {
           console.log("Tentando resgatar convite:", inviteCode, "para userId:", userId);
           await dataServiceSupabase.redeemInvite(inviteCode, userId);
           console.log("Convite resgatado com sucesso e atualizado na tabela invites.");
-          
-          // Após resgate, remove o código do metadata para não rodar novamente
-          const { error: updateError } = await supabase.auth.updateUser({
+        } catch (err) {
+          console.error("Erro ao resgatar convite pendente (ignorando para não travar):", err);
+        } finally {
+          // Limpa o rastro independente de dar erro ou sucesso
+          await supabase.auth.updateUser({
             data: { invite_code: null }
           });
-          if (updateError) {
-            console.error("Erro ao limpar invite_code do metadata:", updateError);
-          } else {
-            console.log("invite_code limpo do metadata com sucesso.");
-            setAuthLoading(false);
-            setIsSplashVisible(false);
-            setActiveView('inventory');
-          }
-        } catch (err) {
-          console.error("Erro ao resgatar convite pendente:", err);
+          
+          // Libera o usuário da tela de carregamento IMEDIATAMENTE
+          setIsSplashVisible(false);
+          setActiveView('inventory');
         }
       }
 
@@ -213,18 +209,28 @@ const App: React.FC = () => {
       // 4. Criar ou Atualizar perfil (Overwrite de display_name)
       if (!userProfile) {
         console.log("Criando novo perfil para userId:", userId, "com nome:", finalDisplayName);
-        userProfile = await dataServiceSupabase.createProfile({
-          user_id: userId,
-          display_name: finalDisplayName,
-          role: 'user',
-          can_edit_items: false
-        });
-        console.log("Perfil criado com sucesso:", userProfile);
+        try {
+          userProfile = await dataServiceSupabase.createProfile({
+            user_id: userId,
+            display_name: finalDisplayName,
+            role: 'user',
+            can_edit_items: false
+          });
+          console.log("Perfil criado com sucesso:", userProfile);
+        } catch (createErr) {
+          console.error("Erro ao criar perfil (pode já existir pelo trigger):", createErr);
+          // Tenta buscar novamente
+          userProfile = await dataServiceSupabase.getProfile(userId);
+        }
       } else if (metaName && userProfile.display_name !== metaName) {
         // Se o nome no Auth Metadata mudou (ex: no cadastro recente), atualiza o Profile
         console.log("Atualizando display_name do perfil existente de", userProfile.display_name, "para", metaName);
-        await dataServiceSupabase.updateProfile(userId, { display_name: metaName });
-        userProfile = { ...userProfile, display_name: metaName };
+        try {
+          await dataServiceSupabase.updateProfile(userId, { display_name: metaName });
+          userProfile = { ...userProfile, display_name: metaName };
+        } catch (updateErr) {
+          console.error("Erro ao atualizar perfil (ignorando):", updateErr);
+        }
       }
       
       setProfile(userProfile);
@@ -1097,6 +1103,13 @@ const App: React.FC = () => {
                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                         {allInvites.map(inv => {
                           const isUsed = inv.uses > 0;
+                          
+                          // Busca implacável pelo nome do usuário no objeto retornado
+                          const profileData = (inv as any).profiles || (inv as any)['profiles!used_by'];
+                          const usedByName = profileData 
+                            ? (Array.isArray(profileData) ? profileData[0]?.display_name : profileData.display_name)
+                            : 'Desconhecido';
+
                           return (
                             <div key={inv.id} className={`p-3 border rounded flex items-center justify-between ${isUsed ? 'bg-zinc-950 border-zinc-900 opacity-60' : 'bg-zinc-900/50 border-zinc-800'}`}>
                               <div>
@@ -1111,7 +1124,7 @@ const App: React.FC = () => {
                                   </div>
                                   {isUsed ? (
                                     <div className="text-[10px] text-zinc-500 mt-1 uppercase font-bold tracking-widest">
-                                      Utilizado por: {((Array.isArray(inv.profiles) ? (inv.profiles as any)[0]?.display_name : inv.profiles?.display_name) || 'Desconhecido')}
+                                      Utilizado por: {usedByName}
                                     </div>
                                   ) : (
                                     <div className="text-[9px] text-zinc-600 mt-1 uppercase tracking-widest">USOS: {inv.uses} / {inv.max_uses}</div>
