@@ -41,11 +41,36 @@ export const dataServiceSupabase = {
     if (error) throw error;
   },
 
-  // Invites
   async listInvites(): Promise<Invite[]> {
-    const { data, error } = await supabase.from("invites").select("*, profiles!used_by(display_name)").order("created_at", { ascending: false });
+    // 1. Busca os convites sem forçar um relacionamento que o banco não reconhece
+    const { data: invites, error } = await supabase
+      .from("invites")
+      .select("*")
+      .order("created_at", { ascending: false });
+      
     if (error) throw error;
-    return data || [];
+    if (!invites) return [];
+
+    // 2. Busca todos os perfis para cruzarmos os dados manualmente
+    const { data: profiles } = await supabase.from("profiles").select("user_id, display_name");
+
+    // 3. Injeta o nome diretamente no objeto do convite, exatamente como o App.tsx espera ler
+    return invites.map(inv => {
+      let usedByName = "Desconhecido";
+      
+      if (inv.used_by && profiles) {
+        const matchedProfile = profiles.find(p => p.user_id === inv.used_by);
+        if (matchedProfile) {
+          usedByName = matchedProfile.display_name;
+        }
+      }
+
+      return {
+        ...inv,
+        // Mandamos o dado mastigado na chave "profiles" que configuramos antes
+        profiles: { display_name: usedByName }
+      };
+    });
   },
   async validateInvite(code: string): Promise<boolean> {
     const { data, error } = await supabase.rpc('validate_invite', { p_code: code });
